@@ -1,5 +1,5 @@
 #include "phlex/module.hpp"
-
+#include <SHiP/SimParticle.hpp>
 using namespace phlex;
 
 PHLEX_REGISTER_ALGORITHMS(m, config)
@@ -9,8 +9,8 @@ PHLEX_REGISTER_ALGORITHMS(m, config)
   // Identity transform: takes "value" in, produces "processed_value" out
   m.transform(
      "passthrough",
-     [](double value) -> double { return value; },
+     [](std::vector<SHiP::SimParticle> const& particles ) -> std::vector<SHiP::SimParticle> { return particles; },
      concurrency::unlimited)
-    .input_family(product_query{.creator = "file_source", .layer = layer, .suffix = "value"})
+    .input_family(product_query{.creator = "rntuple_source", .layer = layer, .suffix="sim_particles"})
     .output_product_suffixes("processed_value");
 }
