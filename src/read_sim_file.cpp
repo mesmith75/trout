@@ -29,7 +29,7 @@ PHLEX_REGISTER_PROVIDERS(m, config)
   m.provide(
     "read_rntuple",
     [reader, view](data_cell_index const& id) -> std::vector<SHiP::SimParticle> {
-      auto entry_index = static_cast<ROOT::NTupleSize_t>(id.number() - 1);
+      auto entry_index = static_cast<ROOT::NTupleSize_t>(id.number());
       return (*view)(entry_index);
     },
     concurrency::serial)

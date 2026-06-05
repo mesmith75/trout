@@ -54,9 +54,7 @@ target_link_libraries(
 include(GNUInstallDirs)
 
 set(PLUGIN_TARGETS
-    debug_observer
     read_sim_file
-    rntuple_unfold
     passthrough
     rec_output_module
 )
