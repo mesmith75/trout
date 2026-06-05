@@ -1,0 +1,49 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.15
+    hooks:
+      - id: ruff
+        types_or: [python]
+        args: [--fix, --show-fixes]
+      - id: ruff-format
+        types_or: [python]
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v22.1.5
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+  - repo: https://github.com/cpplint/cpplint
+    rev: "2.0.2"
+    hooks:
+      - id: cpplint
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+        additional_dependencies: [tomli]
+  - repo: https://github.com/citation-file-format/cffconvert
+    rev: 054bda51dbe278b3e86f27c890e3f3ac877d616c
+    hooks:
+      - id: validate-cff
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+  - repo: https://github.com/BlankSpruce/gersemi
+    rev: 0.17.1
+    hooks:
+      - id: gersemi
+ci:
+  autofix_prs: true
+  autoupdate_commit_msg: "chore(deps): update pre-commit hooks"
+  autofix_commit_msg: "style: pre-commit fixes"

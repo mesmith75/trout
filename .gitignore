@@ -1,0 +1,11 @@
+build/
+install/
+.cache/
+*.root
+bench-*.md
+bench-*.json
+timing_*.csv
+__pycache__/
+*.pyc
+.claude/
+CLAUDE.md
