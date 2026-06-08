@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: trout
+version: 0.1.0
+date-released: "2026-04-08"
+url: https://github.com/ShipSoft/trout
+repository-code: https://github.com/ShipSoft/trout
+type: software
+license: LGPL-3.0-or-later
+authors:
+  - name: The SHiP Collaboration
+abstract: Phlex-based simulation framework for the SHiP experiment, providing Pythia8 event generation, Geant4 detector simulation, and RNTuple output.
+keywords:
+  - physics
+  - particle-physics
+  - simulation
+  - detector-simulation
+  - SHiP
+  - Geant4
+  - Pythia8
