@@ -11,7 +11,10 @@ PHLEX_REGISTER_ALGORITHMS(m, config)
   m.transform(
      "passthrough",
      [](std::vector<SHiP::SimParticle> const& particles ) -> std::vector<SHiP::SimParticle> { 
-      std::cout<<"wassup!"<<std::endl;  
+      std::cout<<"wassup! "<<particles.size()<<std::endl;
+      for(auto &p : particles)
+        std::cout<<"energy: "<<p.energy<<std::endl;
+
       return particles;
     },
      concurrency::unlimited)
