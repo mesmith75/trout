@@ -37,6 +37,13 @@ target_link_libraries(
     PRIVATE phlex::module SHiP::SHiPDataModel
 )
 
+# IP selection
+add_library(ip_selector MODULE src/ip_selector.cpp)
+target_link_libraries(
+    ip_selector
+    PRIVATE phlex::module SHiP::SHiPDataModel
+)
+
 # Reconstruction output module plugin
 add_library(rec_output_module MODULE src/rec_output_module.cpp)
 target_link_libraries(
@@ -56,6 +63,7 @@ include(GNUInstallDirs)
 set(PLUGIN_TARGETS
     read_sim_file
     passthrough
+    ip_selector
     rec_output_module
 )
 
