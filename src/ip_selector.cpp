@@ -29,13 +29,10 @@ PHLEX_REGISTER_ALGORITHMS(m, config)
   // Identity transform: takes "value" in, produces "processed_value" out
   m.transform(
      "ip_selector",[]( std::vector<SHiP::SimParticle> const& ip ) -> std::vector<SHiP::RecParticle> { 
-        std::cout<<"wassup! "<<ip.size()<<std::endl;
         std::vector<SHiP::RecParticle> op;
         for(auto &p : ip) {
-            std::cout<<"energy: "<<p.energy<<std::endl;
             op.emplace_back(SHiP::fromSimParticle(p));
             op.back().ipPV = calculateIP(p.vertex, p.momentum);
-            std::cout<<"ip: "<<op.back().ipPV<<std::endl;
         }
         return op;
      },
