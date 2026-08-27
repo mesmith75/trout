@@ -18,7 +18,6 @@
 #include "phlex/source.hpp"
 
 #include <FieldService/CovfieFieldSource.h>
-
 #include <memory>
 #include <string>
 #include <utility>
@@ -26,22 +25,19 @@
 using namespace phlex;
 
 PHLEX_REGISTER_PROVIDERS(m, config) {
-  // Bare filenames resolve under $SHIPFIELD_ROOT/share/field/ (see
-  // loadCovfieField's own doc comment); absolute/relative paths pass through
-  // unchanged.
-  auto const field_file = config.get<std::string>("field_file");
+    // Bare filenames resolve under $SHIPFIELD_ROOT/share/field/ (see
+    // loadCovfieField's own doc comment); absolute/relative paths pass through
+    // unchanged.
+    auto const field_file = config.get<std::string>("field_file");
 
-  auto eval = ship::loadCovfieField(field_file);
-  auto detector = std::make_shared<DetectorField>();
-  detector->field = std::make_shared<ShipActsFieldProvider>(std::move(eval));
+    auto eval = ship::loadCovfieField(field_file);
+    auto detector = std::make_shared<DetectorField>();
+    detector->field = std::make_shared<ShipActsFieldProvider>(std::move(eval));
 
-  m.provide(
-      "read_field",
-      [detector](data_cell_index const&) -> std::shared_ptr<DetectorField> {
-        return detector;
-      },
-      concurrency::unlimited)
-    .output_product("spectrometer_field",
-                    phlex::experimental::identifier{"field"},
-                    phlex::experimental::identifier{"job"});
+    m.provide(
+         "read_field",
+         [detector](data_cell_index const&) -> std::shared_ptr<DetectorField> { return detector; },
+         concurrency::unlimited)
+        .output_product("spectrometer_field", phlex::experimental::identifier{"field"},
+                        phlex::experimental::identifier{"job"});
 }

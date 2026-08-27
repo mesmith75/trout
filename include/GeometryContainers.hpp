@@ -14,95 +14,91 @@
 #include "Range.hpp"
 
 #include <algorithm>
-#include <cassert>
-#include <utility>
-
 #include <boost/bimap.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
+#include <cassert>
+#include <utility>
 
 namespace ActsExamples {
 namespace detail {
 /// @brief Concept to define objects that have a geometryId getter method
 template <typename ObjType>
 concept GeometryIdObj = requires(const ObjType& obj) {
-  { obj.geometryId() } -> std::same_as<Acts::GeometryIdentifier>;
+    { obj.geometryId() } -> std::same_as<Acts::GeometryIdentifier>;
 };
 /// @brief Concept to define objects to pointer that have a geometryId getter method
 template <typename ObjType>
 concept GeometryIdPtrObj =
-    Acts::PointerConcept<ObjType> &&
-    GeometryIdObj<typename Acts::RemovePointer<ObjType>::type>;
+    Acts::PointerConcept<ObjType> && GeometryIdObj<typename Acts::RemovePointer<ObjType>::type>;
 
 /// @brief Concept to define an object which carries time
 template <typename ObjType>
 concept TimedObj = requires(const ObjType& obj) {
-  { obj.time() };
+    { obj.time() };
 };
 /// @brief Concept to define a pointer to an object which carries time
 template <typename ObjType>
-concept TimedObjPtr = Acts::PointerConcept<ObjType> &&
-                      TimedObj<typename Acts::RemovePointer<ObjType>::type>;
+concept TimedObjPtr =
+    Acts::PointerConcept<ObjType> && TimedObj<typename Acts::RemovePointer<ObjType>::type>;
 
 // extract the geometry identifier from a variety of types
 struct GeometryIdGetter {
-  // explicit geometry identifier are just forwarded
-  constexpr Acts::GeometryIdentifier operator()(
-      Acts::GeometryIdentifier geometryId) const {
-    return geometryId;
-  }
-  // encoded geometry ids are converted back to geometry identifiers.
-  constexpr Acts::GeometryIdentifier operator()(
-      Acts::GeometryIdentifier::Value encoded) const {
-    return Acts::GeometryIdentifier(encoded);
-  }
-  // support elements in map-like structures.
-  template <typename T>
-  constexpr Acts::GeometryIdentifier operator()(
-      const std::pair<Acts::GeometryIdentifier, T>& mapItem) const {
-    return mapItem.first;
-  }
-  // Support pointer to object that implement `.geometryId()`.
-  template <GeometryIdPtrObj T>
-  constexpr Acts::GeometryIdentifier operator()(const T& thing) const {
-    return thing->geometryId();
-  }
-  // support elements that implement `.geometryId()`.
-  template <GeometryIdObj T>
-  inline auto operator()(const T& thing) const {
-    return thing.geometryId();
-  }
-  // support reference_wrappers around such types as well
-  template <GeometryIdObj T>
-  inline auto operator()(std::reference_wrapper<T> thing) const
-      -> decltype(thing.get().geometryId(), Acts::GeometryIdentifier()) {
-    return thing.get().geometryId();
-  }
+    // explicit geometry identifier are just forwarded
+    constexpr Acts::GeometryIdentifier operator()(Acts::GeometryIdentifier geometryId) const {
+        return geometryId;
+    }
+    // encoded geometry ids are converted back to geometry identifiers.
+    constexpr Acts::GeometryIdentifier operator()(Acts::GeometryIdentifier::Value encoded) const {
+        return Acts::GeometryIdentifier(encoded);
+    }
+    // support elements in map-like structures.
+    template <typename T>
+    constexpr Acts::GeometryIdentifier operator()(
+        const std::pair<Acts::GeometryIdentifier, T>& mapItem) const {
+        return mapItem.first;
+    }
+    // Support pointer to object that implement `.geometryId()`.
+    template <GeometryIdPtrObj T>
+    constexpr Acts::GeometryIdentifier operator()(const T& thing) const {
+        return thing->geometryId();
+    }
+    // support elements that implement `.geometryId()`.
+    template <GeometryIdObj T>
+    inline auto operator()(const T& thing) const {
+        return thing.geometryId();
+    }
+    // support reference_wrappers around such types as well
+    template <GeometryIdObj T>
+    inline auto operator()(std::reference_wrapper<T> thing) const
+        -> decltype(thing.get().geometryId(), Acts::GeometryIdentifier()) {
+        return thing.get().geometryId();
+    }
 };
 
 struct CompareGeometryId {
-  // indicate that comparisons between keys and full objects are allowed.
-  using is_transparent = void;
+    // indicate that comparisons between keys and full objects are allowed.
+    using is_transparent = void;
 
-  /// @brief Comparator that sorts objects with the same geometry id by time
-  template <TimedObj Left, TimedObj Right>
-  constexpr bool operator()(const Left& lhs, const Right& rhs) const {
-    const auto lId = GeometryIdGetter{}(lhs);
-    const auto rId = GeometryIdGetter{}(rhs);
-    if (lId == rId) {
-      return lhs.time() < rhs.time();
+    /// @brief Comparator that sorts objects with the same geometry id by time
+    template <TimedObj Left, TimedObj Right>
+    constexpr bool operator()(const Left& lhs, const Right& rhs) const {
+        const auto lId = GeometryIdGetter{}(lhs);
+        const auto rId = GeometryIdGetter{}(rhs);
+        if (lId == rId) {
+            return lhs.time() < rhs.time();
+        }
+        return lId < rId;
     }
-    return lId < rId;
-  }
-  template <TimedObjPtr Left, TimedObjPtr Right>
-  constexpr bool operator()(const Left& lhs, const Right& rhs) const {
-    return (*this)(*lhs, *rhs);
-  }
-  // compare two elements using the automatic key extraction.
-  template <typename Left, typename Right>
-  constexpr bool operator()(Left&& lhs, Right&& rhs) const {
-    return GeometryIdGetter()(lhs) < GeometryIdGetter()(rhs);
-  }
+    template <TimedObjPtr Left, TimedObjPtr Right>
+    constexpr bool operator()(const Left& lhs, const Right& rhs) const {
+        return (*this)(*lhs, *rhs);
+    }
+    // compare two elements using the automatic key extraction.
+    template <typename Left, typename Right>
+    constexpr bool operator()(Left&& lhs, Right&& rhs) const {
+        return GeometryIdGetter()(lhs) < GeometryIdGetter()(rhs);
+    }
 };
 
 }  // namespace detail
@@ -118,8 +114,7 @@ struct CompareGeometryId {
 /// also be accessed by index that uniquely identifies each element regardless
 /// of geometry id.
 template <typename T>
-using GeometryIdMultiset =
-    boost::container::flat_multiset<T, detail::CompareGeometryId>;
+using GeometryIdMultiset = boost::container::flat_multiset<T, detail::CompareGeometryId>;
 /// Store elements indexed by an geometry id.
 ///
 /// @tparam T type to be stored
@@ -134,66 +129,59 @@ using GeometryIdMultiset =
 ///     }
 ///
 template <typename T>
-using GeometryIdMultimap =
-    GeometryIdMultiset<std::pair<Acts::GeometryIdentifier, T>>;
+using GeometryIdMultimap = GeometryIdMultiset<std::pair<Acts::GeometryIdentifier, T>>;
 
 /// Select all elements within the given volume.
 template <typename T>
 inline Range<typename GeometryIdMultiset<T>::const_iterator> selectVolume(
-    const GeometryIdMultiset<T>& container,
-    Acts::GeometryIdentifier::Value volume) {
-  auto cmp = Acts::GeometryIdentifier().withVolume(volume);
-  auto beg = std::lower_bound(container.begin(), container.end(), cmp,
-                              detail::CompareGeometryId{});
-  // WARNING overflows to volume==0 if the input volume is the last one
-  cmp = Acts::GeometryIdentifier().withVolume(volume + 1u);
-  // optimize search by using the lower bound as start point. also handles
-  // volume overflows since the geo id would be located before the start of
-  // the upper edge search window.
-  auto end =
-      std::lower_bound(beg, container.end(), cmp, detail::CompareGeometryId{});
-  return makeRange(beg, end);
+    const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier::Value volume) {
+    auto cmp = Acts::GeometryIdentifier().withVolume(volume);
+    auto beg =
+        std::lower_bound(container.begin(), container.end(), cmp, detail::CompareGeometryId{});
+    // WARNING overflows to volume==0 if the input volume is the last one
+    cmp = Acts::GeometryIdentifier().withVolume(volume + 1u);
+    // optimize search by using the lower bound as start point. also handles
+    // volume overflows since the geo id would be located before the start of
+    // the upper edge search window.
+    auto end = std::lower_bound(beg, container.end(), cmp, detail::CompareGeometryId{});
+    return makeRange(beg, end);
 }
 
 /// Select all elements within the given volume.
 template <typename T>
-inline auto selectVolume(const GeometryIdMultiset<T>& container,
-                         Acts::GeometryIdentifier id) {
-  return selectVolume(container, id.volume());
+inline auto selectVolume(const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier id) {
+    return selectVolume(container, id.volume());
 }
 
 /// Select all elements within the given layer.
 template <typename T>
 inline Range<typename GeometryIdMultiset<T>::const_iterator> selectLayer(
-    const GeometryIdMultiset<T>& container,
-    Acts::GeometryIdentifier::Value volume,
+    const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier::Value volume,
     Acts::GeometryIdentifier::Value layer) {
-  auto cmp = Acts::GeometryIdentifier().withVolume(volume).withLayer(layer);
-  auto beg = std::lower_bound(container.begin(), container.end(), cmp,
-                              detail::CompareGeometryId{});
-  // WARNING resets to layer==0 if the input layer is the last one
-  cmp = Acts::GeometryIdentifier().withVolume(volume).withLayer(layer + 1u);
-  // optimize search by using the lower bound as start point. also handles
-  // volume overflows since the geo id would be located before the start of
-  // the upper edge search window.
-  auto end =
-      std::lower_bound(beg, container.end(), cmp, detail::CompareGeometryId{});
-  return makeRange(beg, end);
+    auto cmp = Acts::GeometryIdentifier().withVolume(volume).withLayer(layer);
+    auto beg =
+        std::lower_bound(container.begin(), container.end(), cmp, detail::CompareGeometryId{});
+    // WARNING resets to layer==0 if the input layer is the last one
+    cmp = Acts::GeometryIdentifier().withVolume(volume).withLayer(layer + 1u);
+    // optimize search by using the lower bound as start point. also handles
+    // volume overflows since the geo id would be located before the start of
+    // the upper edge search window.
+    auto end = std::lower_bound(beg, container.end(), cmp, detail::CompareGeometryId{});
+    return makeRange(beg, end);
 }
 
 // Select all elements within the given layer.
 template <typename T>
-inline auto selectLayer(const GeometryIdMultiset<T>& container,
-                        Acts::GeometryIdentifier id) {
-  return selectLayer(container, id.volume(), id.layer());
+inline auto selectLayer(const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier id) {
+    return selectLayer(container, id.volume(), id.layer());
 }
 
 /// Select all elements for the given module / sensitive surface.
 template <typename T>
 inline Range<typename GeometryIdMultiset<T>::const_iterator> selectModule(
     const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier geoId) {
-  // module is the lowest level and defines a single geometry id value
-  return makeRange(container.equal_range(geoId));
+    // module is the lowest level and defines a single geometry id value
+    return makeRange(container.equal_range(geoId));
 }
 
 /// Select all elements for the given module / sensitive surface.
@@ -202,10 +190,9 @@ inline auto selectModule(const GeometryIdMultiset<T>& container,
                          Acts::GeometryIdentifier::Value volume,
                          Acts::GeometryIdentifier::Value layer,
                          Acts::GeometryIdentifier::Value sensitive) {
-  return selectModule(container, Acts::GeometryIdentifier()
-                                     .withVolume(volume)
-                                     .withLayer(layer)
-                                     .withSensitive(sensitive));
+    return selectModule(
+        container,
+        Acts::GeometryIdentifier().withVolume(volume).withLayer(layer).withSensitive(sensitive));
 }
 
 /// Select all elements for the lowest non-zero identifier component.
@@ -225,29 +212,27 @@ inline auto selectModule(const GeometryIdMultiset<T>& container,
 ///   hierarchy and must be set to zero for the selection. If they are set on an
 ///   input identifier, the behaviour of this search method is undefined.
 template <typename T>
-inline Range<typename GeometryIdMultiset<T>::const_iterator>
-selectLowestNonZeroGeometryObject(const GeometryIdMultiset<T>& container,
-                                  Acts::GeometryIdentifier geoId) {
-  assert((geoId.boundary() == 0u) && "Boundary component must be zero");
-  assert((geoId.approach() == 0u) && "Approach component must be zero");
+inline Range<typename GeometryIdMultiset<T>::const_iterator> selectLowestNonZeroGeometryObject(
+    const GeometryIdMultiset<T>& container, Acts::GeometryIdentifier geoId) {
+    assert((geoId.boundary() == 0u) && "Boundary component must be zero");
+    assert((geoId.approach() == 0u) && "Approach component must be zero");
 
-  if (geoId.sensitive() != 0u) {
-    return selectModule(container, geoId);
-  } else if (geoId.layer() != 0u) {
-    return selectLayer(container, geoId);
-  } else if (geoId.volume() != 0u) {
-    return selectVolume(container, geoId);
-  } else {
-    return makeRange(container.begin(), container.end());
-  }
+    if (geoId.sensitive() != 0u) {
+        return selectModule(container, geoId);
+    } else if (geoId.layer() != 0u) {
+        return selectLayer(container, geoId);
+    } else if (geoId.volume() != 0u) {
+        return selectVolume(container, geoId);
+    } else {
+        return makeRange(container.begin(), container.end());
+    }
 }
 
 /// Iterate over groups of elements belonging to each module/ sensitive surface.
 template <typename T>
-inline GroupBy<typename GeometryIdMultiset<T>::const_iterator,
-               detail::GeometryIdGetter>
+inline GroupBy<typename GeometryIdMultiset<T>::const_iterator, detail::GeometryIdGetter>
 groupByModule(const GeometryIdMultiset<T>& container) {
-  return makeGroupBy(container, detail::GeometryIdGetter());
+    return makeGroupBy(container, detail::GeometryIdGetter());
 }
 
 /// The accessor for the GeometryIdMultiset container
@@ -256,18 +241,17 @@ groupByModule(const GeometryIdMultiset<T>& container) {
 /// Filter
 template <typename T>
 struct GeometryIdMultisetAccessor {
-  using Container = GeometryIdMultiset<T>;
-  using Key = Acts::GeometryIdentifier;
-  using Value = typename GeometryIdMultiset<T>::value_type;
-  using Iterator = typename GeometryIdMultiset<T>::const_iterator;
+    using Container = GeometryIdMultiset<T>;
+    using Key = Acts::GeometryIdentifier;
+    using Value = typename GeometryIdMultiset<T>::value_type;
+    using Iterator = typename GeometryIdMultiset<T>::const_iterator;
 
-  // pointer to the container
-  const Container* container = nullptr;
+    // pointer to the container
+    const Container* container = nullptr;
 };
 
 /// A map that allows mapping back and forth between ACTS and Athena Geometry
 /// Ids
-using GeometryIdMapActsAthena =
-    boost::bimap<std::uint64_t, Acts::GeometryIdentifier>;
+using GeometryIdMapActsAthena = boost::bimap<std::uint64_t, Acts::GeometryIdentifier>;
 
 }  // namespace ActsExamples

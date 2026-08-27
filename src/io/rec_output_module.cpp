@@ -125,8 +125,7 @@ class TypedHitWriter {
 class HitRNTupleWriter {
    public:
     explicit HitRNTupleWriter(std::string const& filename, bool isSim)
-        : file_service_{filename},
-          spectrometer_tracks_{file_service_, "spectrometer_tracks"} {
+        : file_service_{filename}, spectrometer_tracks_{file_service_, "spectrometer_tracks"} {
         if (isSim) {
             simhits_.emplace(file_service_, "sim_hits");
             simparticles_.emplace(file_service_, "sim_particles");
@@ -187,30 +186,30 @@ class RecoHistogrammer {
           f_ref_y_{h_ref_y_},
           f_ref_z_{h_ref_z_},
           m_isSim{isSim} {
-            if (isSim) {
-                // Plain assignment, not brace-init: h_sim_*_ are shared_ptr
-                // (default-null, fine to assign post-construction).
-                h_sim_hit_multiplicity_ = make_hist(1000, -0.5, 999.5);
-                h_sim_particle_multiplicity_ = make_hist(1000, -0.5, 999.5);
-                h_sim_hit_x_ = make_hist(200, -3000., 3000.);
-                h_sim_hit_y_ = make_hist(200, -6000., 6000.);
-                h_sim_hit_z_ = make_hist(200, -1000., 120000.);
-                h_sim_particle_vtx_x_ = make_hist(200, -100., 100.);
-                h_sim_particle_vtx_y_ = make_hist(200, -100., 100.);
-                h_sim_particle_vtx_z_ = make_hist(200, -100., 1000.);
+        if (isSim) {
+            // Plain assignment, not brace-init: h_sim_*_ are shared_ptr
+            // (default-null, fine to assign post-construction).
+            h_sim_hit_multiplicity_ = make_hist(1000, -0.5, 999.5);
+            h_sim_particle_multiplicity_ = make_hist(1000, -0.5, 999.5);
+            h_sim_hit_x_ = make_hist(200, -3000., 3000.);
+            h_sim_hit_y_ = make_hist(200, -6000., 6000.);
+            h_sim_hit_z_ = make_hist(200, -1000., 120000.);
+            h_sim_particle_vtx_x_ = make_hist(200, -100., 100.);
+            h_sim_particle_vtx_y_ = make_hist(200, -100., 100.);
+            h_sim_particle_vtx_z_ = make_hist(200, -100., 1000.);
 
-                // f_sim_*_ are RHistConcurrentFiller, which has no default
-                // constructor (only one taking a shared_ptr<RHist>), so they
-                // must be optional to stay unconstructed until here.
-                f_sim_hit_multiplicity_.emplace(h_sim_hit_multiplicity_);
-                f_sim_particle_multiplicity_.emplace(h_sim_particle_multiplicity_);
-                f_sim_hit_x_.emplace(h_sim_hit_x_);
-                f_sim_hit_y_.emplace(h_sim_hit_y_);
-                f_sim_hit_z_.emplace(h_sim_hit_z_);
-                f_sim_particle_vtx_x_.emplace(h_sim_particle_vtx_x_);
-                f_sim_particle_vtx_y_.emplace(h_sim_particle_vtx_y_);
-                f_sim_particle_vtx_z_.emplace(h_sim_particle_vtx_z_);
-            }
+            // f_sim_*_ are RHistConcurrentFiller, which has no default
+            // constructor (only one taking a shared_ptr<RHist>), so they
+            // must be optional to stay unconstructed until here.
+            f_sim_hit_multiplicity_.emplace(h_sim_hit_multiplicity_);
+            f_sim_particle_multiplicity_.emplace(h_sim_particle_multiplicity_);
+            f_sim_hit_x_.emplace(h_sim_hit_x_);
+            f_sim_hit_y_.emplace(h_sim_hit_y_);
+            f_sim_hit_z_.emplace(h_sim_hit_z_);
+            f_sim_particle_vtx_x_.emplace(h_sim_particle_vtx_x_);
+            f_sim_particle_vtx_y_.emplace(h_sim_particle_vtx_y_);
+            f_sim_particle_vtx_z_.emplace(h_sim_particle_vtx_z_);
+        }
     }
 
     // Full signature — used when sim_hits/sim_particles are actually being
@@ -244,12 +243,13 @@ class RecoHistogrammer {
                 th1->SetNameTitle(name, title);
                 file->Put(name, *th1);
             };
-            put("h_spectrometer_track_multiplicity", "Spectrometer tracks per event;N;Events", *h_spectrometer_track_multiplicity_);
+            put("h_spectrometer_track_multiplicity", "Spectrometer tracks per event;N;Events",
+                *h_spectrometer_track_multiplicity_);
             put("h_ref_x", "Spectrometer track reference x position;x [mm];Entries", *h_ref_x_);
             put("h_ref_y", "Spectrometer track reference y position;y [mm];Entries", *h_ref_y_);
             put("h_ref_z", "Spectrometer track reference z position;z [mm];Entries", *h_ref_z_);
 
-            if(h_sim_hit_multiplicity_){
+            if (h_sim_hit_multiplicity_) {
                 put("h_sim_hit_multiplicity", "Simulated hits per event;N;Events",
                     *h_sim_hit_multiplicity_);
                 put("h_sim_particle_multiplicity", "Simulated particles per event;N;Events",
@@ -281,11 +281,12 @@ class RecoHistogrammer {
     FillContexts& ensure_contexts() {
         auto& ctxs = fill_contexts_.local();
         if (!ctxs.spectrometer_track_multiplicity) {
-            ctxs.spectrometer_track_multiplicity = f_spectrometer_track_multiplicity_.CreateFillContext();
+            ctxs.spectrometer_track_multiplicity =
+                f_spectrometer_track_multiplicity_.CreateFillContext();
             ctxs.ref_x = f_ref_x_.CreateFillContext();
             ctxs.ref_y = f_ref_y_.CreateFillContext();
             ctxs.ref_z = f_ref_z_.CreateFillContext();
-            if(m_isSim){
+            if (m_isSim) {
                 ctxs.sim_hit_multiplicity = f_sim_hit_multiplicity_->CreateFillContext();
                 ctxs.sim_particle_multiplicity = f_sim_particle_multiplicity_->CreateFillContext();
                 ctxs.sim_hit_x = f_sim_hit_x_->CreateFillContext();
@@ -344,8 +345,8 @@ class RecoHistogrammer {
     // Optional: RHistConcurrentFiller has no default constructor, and these
     // are only ever constructed (via emplace, above) when isSim is set.
     std::optional<FillerD> f_sim_hit_multiplicity_, f_sim_particle_multiplicity_;
-    std::optional<FillerD> f_sim_hit_x_, f_sim_hit_y_, f_sim_hit_z_,
-        f_sim_particle_vtx_x_, f_sim_particle_vtx_y_, f_sim_particle_vtx_z_;
+    std::optional<FillerD> f_sim_hit_x_, f_sim_hit_y_, f_sim_hit_z_, f_sim_particle_vtx_x_,
+        f_sim_particle_vtx_y_, f_sim_particle_vtx_z_;
     tbb::enumerable_thread_specific<FillContexts> fill_contexts_;
     bool m_isSim = false;
 };
@@ -363,7 +364,8 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     using namespace phlex;
 
     auto mode = config.get<std::string>("mode", std::string{"reco"});
-    auto rntuple_file = config.get<std::string>("rntuple_file", std::string{"reconstructed_objects.root"});
+    auto rntuple_file =
+        config.get<std::string>("rntuple_file", std::string{"reconstructed_objects.root"});
     auto histo_file = config.get<std::string>("histo_file", std::string{"reco_validation.root"});
     auto creator = config.get<std::string>("creator", std::string{"fit_seed"});
     auto layer = config.get<std::string>("layer", std::string{"spill"});
@@ -411,10 +413,12 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
     auto writer = m.make<HitRNTupleWriter>(rntuple_file, isSim);
 
-    writer.observe("write_spectrometer_tracks", &HitRNTupleWriter::write_spectrometer_tracks, concurrency::unlimited)
+    writer
+        .observe("write_spectrometer_tracks", &HitRNTupleWriter::write_spectrometer_tracks,
+                 concurrency::unlimited)
         .input_family(selector("track_fit_result"));
 
-    if(isSim){
+    if (isSim) {
         writer.observe("write_sim_hits", &HitRNTupleWriter::write_sim_hits, concurrency::unlimited)
             .input_family(passthrough("sim_hits"));
 
@@ -433,7 +437,8 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             .input_family(selector("track_fit_result"), passthrough("sim_hits"),
                           passthrough("sim_particles"));
     } else {
-        histogrammer.observe("validate", &RecoHistogrammer::observe_tracks_only, concurrency::unlimited)
+        histogrammer
+            .observe("validate", &RecoHistogrammer::observe_tracks_only, concurrency::unlimited)
             .input_family(selector("track_fit_result"));
     }
 }

@@ -9,10 +9,9 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdint>
-
 #include <boost/container/flat_map.hpp>
 #include <boost/version.hpp>
+#include <cstdint>
 
 namespace ActsExamples {
 
@@ -41,24 +40,22 @@ using InverseMultimap = boost::container::flat_multimap<value_t, Index>;
 
 /// Invert the multimap, i.e. from a -> {b...} to b -> {a...}
 template <typename value_t>
-inline InverseMultimap<value_t> invertIndexMultimap(
-    const IndexMultimap<value_t>& multimap) {
-  // switch key-value without enforcing the new ordering (linear copy)
-  typename InverseMultimap<value_t>::sequence_type unordered;
-  unordered.reserve(multimap.size());
-  for (auto&& [index, value] : multimap) {
-    // value is now the key and the index is now the value
-    unordered.emplace_back(value, index);
-  }
+inline InverseMultimap<value_t> invertIndexMultimap(const IndexMultimap<value_t>& multimap) {
+    // switch key-value without enforcing the new ordering (linear copy)
+    typename InverseMultimap<value_t>::sequence_type unordered;
+    unordered.reserve(multimap.size());
+    for (auto&& [index, value] : multimap) {
+        // value is now the key and the index is now the value
+        unordered.emplace_back(value, index);
+    }
 
-  // adopting the unordered sequence will reestablish the correct order
-  InverseMultimap<value_t> inverse;
+    // adopting the unordered sequence will reestablish the correct order
+    InverseMultimap<value_t> inverse;
 
-  std::ranges::sort(unordered);
-  inverse.insert(boost::container::ordered_range_t{}, unordered.begin(),
-                 unordered.end());
+    std::ranges::sort(unordered);
+    inverse.insert(boost::container::ordered_range_t{}, unordered.begin(), unordered.end());
 
-  return inverse;
+    return inverse;
 }
 
 }  // namespace ActsExamples

@@ -1,25 +1,23 @@
 #pragma once
 
-#include <array>
-#include <cmath>
-#include <vector>
-#include <cstdint>
-
-#include <SHiP/TrackFitResult.hpp>
-
 #include <Acts/Definitions/Algebra.hpp>
 #include <Acts/EventData/VectorMultiTrajectory.hpp>
 #include <Acts/EventData/VectorTrackContainer.hpp>
 #include <Acts/Geometry/GeometryContext.hpp>
+#include <SHiP/TrackFitResult.hpp>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <vector>
 
 namespace SHiP {
 
 inline TrackFitResult fromACTSFitResult(
     const Acts::Result<Acts::TrackContainer<Acts::VectorTrackContainer, Acts::VectorMultiTrajectory,
                                             Acts::ValueHolder>::TrackProxy>& actsResult,
-        Acts::TrackContainer<Acts::VectorTrackContainer, Acts::VectorMultiTrajectory, Acts::ValueHolder>& tracks,
-        Acts::GeometryContext const& gctx) {
-
+    Acts::TrackContainer<Acts::VectorTrackContainer, Acts::VectorMultiTrajectory,
+                         Acts::ValueHolder>& tracks,
+    Acts::GeometryContext const& gctx) {
     TrackFitResult result;
     if (!actsResult.ok()) {
         result.fitStatus = 1;
@@ -57,13 +55,14 @@ inline TrackFitResult fromACTSFitResult(
     }
 
     states.visitBackwards(track.tipIndex(), [&](auto ts) {
-        if (!ts.typeFlags().isMeasurement()){
+        if (!ts.typeFlags().isMeasurement()) {
             return true;
         }
-        if (!(ts.hasCalibrated())) {;
+        if (!(ts.hasCalibrated())) {
+            ;
             return true;
         }
-        if(!ts.hasSmoothed()) {
+        if (!ts.hasSmoothed()) {
             return true;
         }
 
@@ -86,4 +85,4 @@ inline TrackFitResult fromACTSFitResult(
 
     return result;
 }
-}
+}  // namespace SHiP

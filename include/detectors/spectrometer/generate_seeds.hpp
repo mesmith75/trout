@@ -4,20 +4,20 @@
 
 #pragma once
 
-#include <memory>
-#include <string>
-
 #include "GeometryContainers.hpp"
 #include "PhlexModuleProxy.hpp"
 #include "SpillContext.hpp"
 #include "phlex/core/product_selector.hpp"
 
+#include <memory>
+#include <string>
+
 // A single seed's identity: two hit indices into SpillContext::measurements
 // (one at station 1, one at station 2) — fit_seed rebuilds the actual
 // BoundTrackParameters via makeSeedFromHitPair.
 struct SeedHitPair {
-  ActsExamples::Index idx0{0};
-  ActsExamples::Index idx1{0};
+    ActsExamples::Index idx0{0};
+    ActsExamples::Index idx1{0};
 };
 
 // generate_seeds' actual per-child output: the pair plus the SpillContext it
@@ -25,8 +25,8 @@ struct SeedHitPair {
 // register_generate_seeds's doc comment for why this isn't instead a
 // separate, cross-layer broadcast input on fit_seed's side).
 struct SeedWithContext {
-  std::shared_ptr<SpillContext> ctx;
-  SeedHitPair pair;
+    std::shared_ptr<SpillContext> ctx;
+    SeedHitPair pair;
 };
 
 // generate_seeds (spill layer, unfold): walks every station-1/station-2 hit

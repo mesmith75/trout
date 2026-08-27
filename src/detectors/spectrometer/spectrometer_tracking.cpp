@@ -22,21 +22,19 @@
 // See each header for what that stage actually does, and SpectrometerCkf.hpp
 // for the underlying ACTS track-finding/fitting engine all of them share.
 
-#include <string>
-
-#include "phlex/module.hpp"
-
 #include "detectors/spectrometer/fit_seed.hpp"
 #include "detectors/spectrometer/generate_seeds.hpp"
 #include "detectors/spectrometer/prepare_measurements.hpp"
+#include "phlex/module.hpp"
+
+#include <string>
 
 PHLEX_REGISTER_ALGORITHMS(m, config) {
-  auto const layer =
-      phlex::experimental::identifier{config.get<std::string>("layer")};
-  auto const seedLayerName = std::string{"seed"};
-  auto const seedLayer = phlex::experimental::identifier{seedLayerName};
+    auto const layer = phlex::experimental::identifier{config.get<std::string>("layer")};
+    auto const seedLayerName = std::string{"seed"};
+    auto const seedLayer = phlex::experimental::identifier{seedLayerName};
 
-  register_prepare_measurements(m, layer);
-  register_generate_seeds(m, layer, seedLayerName);
-  register_fit_seed(m, seedLayer);
+    register_prepare_measurements(m, layer);
+    register_generate_seeds(m, layer, seedLayerName);
+    register_fit_seed(m, seedLayer);
 }

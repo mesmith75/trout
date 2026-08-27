@@ -1,2 +1,34 @@
+---
 Language: Cpp
 BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+PointerAlignment: Left
+ReferenceAlignment: Left
+SpaceAfterTemplateKeyword: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Local headers
+  - Regex: '^"'
+    Priority: 1
+  # Geant4 headers
+  - Regex: '^<G4'
+    Priority: 3
+  # ROOT headers
+  - Regex: '^<(T[A-Z]|ROOT/|RN)'
+    Priority: 4
+  # External library headers
+  - Regex: '^<(taskflow|yaml-cpp|nlohmann)'
+    Priority: 5
+  # System headers
+  - Regex: '^<'
+    Priority: 6
+SortIncludes: CaseSensitive
+...

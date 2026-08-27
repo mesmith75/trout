@@ -20,14 +20,14 @@
 // here so the day a real model needs them, it's this struct and this one
 // call site that grow — not every caller of hitCovariance().
 struct HitUncertaintyContext {
-  Acts::Vector3 globalPosition;
-  double time = 0.0;
+    Acts::Vector3 globalPosition;
+    double time = 0.0;
 
-  // Not yet populated. Would need e.g. a two-pass approach (fit once with
-  // today's placeholder, feed the resulting track parameters back in) or
-  // a fuller occupancy count computed across each station up front.
-  // std::optional<Acts::BoundTrackParameters> trackParameters;
-  // std::optional<std::size_t> stationOccupancy;
+    // Not yet populated. Would need e.g. a two-pass approach (fit once with
+    // today's placeholder, feed the resulting track parameters back in) or
+    // a fuller occupancy count computed across each station up front.
+    // std::optional<Acts::BoundTrackParameters> trackParameters;
+    // std::optional<std::size_t> stationOccupancy;
 };
 
 // Per-hit measurement covariance in the surface's local 2D frame
