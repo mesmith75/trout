@@ -59,7 +59,6 @@ inline TrackFitResult fromACTSFitResult(
             return true;
         }
         if (!(ts.hasCalibrated())) {
-            ;
             return true;
         }
         if (!ts.hasSmoothed()) {
