@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "phlex/module.hpp"
+#include "phlex/core/product_selector.hpp"
 
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/RecParticle.hpp>
@@ -37,6 +38,6 @@ PHLEX_REGISTER_ALGORITHMS(m, config)
         return op;
      },
      concurrency::unlimited)
-    .input_family(product_query{.creator = "rntuple_source", .layer = layer, .suffix="sim_particles"})
+    .input_family(product_selector{.creator = "rntuple_source", .layer = layer, .suffix="sim_particles"})
     .output_product_suffixes("processed_value");
 }

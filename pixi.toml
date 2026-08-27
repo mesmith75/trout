@@ -1,0 +1,95 @@
+[workspace]
+name = "trout"
+description = "Phlex-based reconstruction framework for the SHiP experiment"
+channels = [ "https://prefix.dev/ship", "conda-forge"]
+platforms = ["linux-64"]
+# Enables source dependencies for the (opt-in) multi-package dev workflow
+# below; inert for the other environments.
+preview = ["pixi-build"]
+requires-pixi = ">=0.68"
+
+[feature.index.dependencies]
+rattler-build = ">=0.35"
+
+
+
+[dependencies]
+# SHiP/HEP packages (prefix.dev/ship + conda-forge)
+shipgeometry = "*"
+shipgeometryservice = ">=0.3"
+field-service-core = "*"
+field-service-g4 = "*"
+phlex = ">=0.3.0"
+root = ">=6.36"
+geant4 = ">=11.3"
+pythia8 = ">=8.3"
+random123 = "*"
+libjsonnet = "*"
+eigen = ">=5.0.1,<5.0.2"
+field-service-tools="==0.1.0"
+gdb="*"
+
+# C++ libraries
+libboost-devel = "*"
+tbb-devel = "*"
+spdlog = "*"
+fmt = "*"
+mp-units = "*"
+ms-gsl = "*"
+
+# Build tools
+cmake = ">=3.27"
+ninja = "*"
+cxx-compiler = "*"
+
+[activation]
+scripts = ["activate.sh"]
+
+[tasks]
+
+configure = { cmd = """
+cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DActs_DIR=$PIXI_PROJECT_ROOT/../acts/install/lib/cmake/Acts/ \
+    -DCOVFIE_FINGERPRINT=field_service_covfie_v0.15.2 \
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+""" }
+
+build = { cmd = "cmake --build build -j8 --config Debug", depends-on = ["configure"] }
+install = { cmd = "cmake --install build", depends-on = ["build"] }
+test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"] }
+smoke = { cmd = "scripts/smoke.sh", depends-on = ["build"] }
+clean = "rm -rf build"
+
+
+[feature.bench.dependencies]
+hyperfine = "*"
+just = "*"
+linux-perf = "*"
+
+# --- Multi-package development ------------------------------------------
+# Build shipdatamodel from a sibling checkout instead of a released conda
+# package: `pixi run -e dev build`/`install`/`test`/`phlex ...`. Requires
+# ../data-model to exist (its pixi.toml packages it as a pixi-build source
+# dependency). This is the only environment with a usable shipdatamodel —
+# `shipdatamodel` was never a `[dependencies]` entry here, so building trout
+# has always meant building data-model from source first; this just does it
+# through pixi's dependency graph instead of the old manual
+# configure-datamodel/build-datamodel/install-datamodel task chain.
+# ACTS is not part of this dependency graph (no conda package for this
+# checked-out version) — it keeps coming in via the -DActs_DIR flag on the
+# `configure` task above, which points at the sibling ../acts checkout
+# regardless of environment.
+# Do NOT commit this block enabled together with pixi.lock changes it causes
+# if that leaves the committed lock unresolvable without the sibling checkout
+# — check `git diff pixi.lock` before committing.
+[feature.dev.dependencies]
+shipdatamodel = { path = "../data-model" }
+
+[environments]
+default = { solve-group = "default" }
+bench = { features = ["bench"], solve-group = "default" }
+index = { features = ["index"], solve-group = "default" }
+dev = { features = ["dev"] }

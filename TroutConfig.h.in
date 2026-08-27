@@ -1,0 +1,13 @@
+#pragma once
+
+#include <iostream>
+#include <string_view>
+
+#define Trout_VERSION_STRING "@trout_VERSION@"
+
+inline void printVersion(){
+    std::cout<<"================================================="<<std::endl;
+    std::cout<<"Welcome to Trout, the SHiP reconstruction package"<<std::endl;
+    std::cout<<"Version "<<Trout_VERSION_STRING<<std::endl;
+    std::cout<<"================================================="<<std::endl;
+}
