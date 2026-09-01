@@ -131,6 +131,35 @@ target_include_directories(
     PUBLIC "${PROJECT_BINARY_DIR}"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
+
+add_library(
+    upstream_tagger_reco
+    MODULE
+    src/detectors/upstream_tagger/upstream_tagger_reco.cpp
+)
+target_link_libraries(upstream_tagger_reco PRIVATE phlex::module SHiP::SHiPDataModel)
+
+add_library(
+    surround_tagger_reco
+    MODULE
+    src/detectors/surround_tagger/surround_tagger_reco.cpp
+)
+target_link_libraries(surround_tagger_reco PRIVATE phlex::module SHiP::SHiPDataModel)
+
+add_library(
+    calorimeter_reco
+    MODULE
+    src/detectors/calorimeter/calorimeter_reco.cpp
+)
+target_link_libraries(calorimeter_reco PRIVATE phlex::module SHiP::SHiPDataModel)
+
+add_library(
+    timing_detector_reco
+    MODULE
+    src/detectors/timing_detector/timing_detector_reco.cpp
+)
+target_link_libraries(timing_detector_reco PRIVATE phlex::module SHiP::SHiPDataModel)
+
 # Reconstruction output module plugin
 add_library(rec_output_module MODULE src/io/rec_output_module.cpp)
 target_link_libraries(
@@ -153,6 +182,10 @@ set(PLUGIN_TARGETS
     read_digitised_hits
     passthrough
     ip_selector
+    upstream_tagger_reco
+    surround_tagger_reco
+    calorimeter_reco
+    timing_detector_reco
     rec_output_module
 )
 

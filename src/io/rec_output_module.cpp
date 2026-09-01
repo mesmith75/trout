@@ -28,6 +28,10 @@
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/TrackFitResult.hpp>
+#include <SHiP/detectors/UBTHit.hpp>
+#include <SHiP/detectors/SBTHit.hpp>
+#include <SHiP/detectors/CaloHit.hpp>
+#include <SHiP/detectors/TimeDetHit.hpp>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -54,6 +58,10 @@ using ROOT::Experimental::RHistConcurrentFiller;
 using ROOT::Experimental::RHistFillContext;
 
 using SpectrometerTracks = std::vector<SHiP::TrackFitResult>;
+using UpstreamTaggerObjects = std::vector<SHiP::UBTHit>;
+using SurroundTaggerObjects = std::vector<SHiP::SBTHit>;
+using CalorimeterObjects = std::vector<SHiP::CaloHit>;
+using TimingDetectorObjects = std::vector<SHiP::TimeDetHit>;
 using SimHits = std::vector<SHiP::SimHit>;
 using SimParticles = std::vector<SHiP::SimParticle>;
 
@@ -125,16 +133,44 @@ class TypedHitWriter {
 class HitRNTupleWriter {
    public:
     explicit HitRNTupleWriter(std::string const& filename, bool isSim)
-        : file_service_{filename}, spectrometer_tracks_{file_service_, "spectrometer_tracks"} {
+        : file_service_{filename}, spectrometer_tracks_{file_service_, "spectrometer_tracks"},
+                                   ubt_objects_{file_service_, "upstream_tagger"},
+                                   sbt_objects_{file_service_, "surround_tagger"},
+                                   calo_objects_{file_service_, "calorimeter"},
+                                   time_det_objects_{file_service_, "timing_detector"} {
         if (isSim) {
             simhits_.emplace(file_service_, "sim_hits");
             simparticles_.emplace(file_service_, "sim_particles");
         }
     }
 
-    void write_spectrometer_tracks(std::vector<SHiP::TrackFitResult> const& hits) {
+    void write_spectrometer_tracks(std::vector<SHiP::TrackFitResult> const& tracks) {
+        for (auto const& track : tracks) {
+            spectrometer_tracks_.write(track);
+        }
+    }
+
+    void write_upstream_tagger(std::vector<SHiP::UBTHit> const& hits) {
         for (auto const& hit : hits) {
-            spectrometer_tracks_.write(hit);
+            ubt_objects_.write(hit);
+        }
+    }
+
+    void write_surround_tagger(std::vector<SHiP::SBTHit> const& hits) {
+        for (auto const& hit : hits) {
+            sbt_objects_.write(hit);
+        }
+    }
+
+    void write_calorimeter(std::vector<SHiP::CaloHit> const& hits) {
+        for (auto const& hit : hits) {
+            calo_objects_.write(hit);
+        }
+    }
+
+    void write_timing_detector(std::vector<SHiP::TimeDetHit> const& hits) {
+        for (auto const& hit : hits) {
+            time_det_objects_.write(hit);
         }
     }
 
@@ -158,6 +194,11 @@ class HitRNTupleWriter {
     RNTupleFileService file_service_;
 
     TypedHitWriter<SHiP::TrackFitResult> spectrometer_tracks_;
+    TypedHitWriter<SHiP::UBTHit> ubt_objects_;
+    TypedHitWriter<SHiP::SBTHit> sbt_objects_;
+    TypedHitWriter<SHiP::CaloHit> calo_objects_;
+    TypedHitWriter<SHiP::TimeDetHit> time_det_objects_;
+
     // Left unconstructed (no RNTuple created at all) unless isSim
     std::optional<TypedHitWriter<SHiP::SimHit>> simhits_;
     std::optional<TypedHitWriter<SHiP::SimParticle>> simparticles_;
@@ -214,7 +255,12 @@ class RecoHistogrammer {
 
     // Full signature — used when sim_hits/sim_particles are actually being
     // read (mode: simulation input available).
-    void observe(SpectrometerTracks const& spectrometer_tracks, SimHits const& sim_hits,
+    void observe(SpectrometerTracks const& spectrometer_tracks,
+                 UpstreamTaggerObjects const& ubt_objects,
+                 SurroundTaggerObjects const& sbt_objects,
+                 CalorimeterObjects const& calo_objects,
+                 TimingDetectorObjects const* time_det_objects,
+                 SimHits const& sim_hits,
                  SimParticles const& sim_particles) {
         auto& ctxs = ensure_contexts();
         fill_one(ctxs, spectrometer_tracks, *ctxs.spectrometer_track_multiplicity);
@@ -226,7 +272,12 @@ class RecoHistogrammer {
     // input to depend on at all (e.g. real data, no simulation truth), since
     // phlex requires input_family's selector count to match the registered
     // function's arity exactly.
-    void observe_tracks_only(SpectrometerTracks const& spectrometer_tracks) {
+    void observe_tracks_only(SpectrometerTracks const& spectrometer_tracks,
+                             UpstreamTaggerObjects const& ubt_objects,
+                             SurroundTaggerObjects const& sbt_objects,
+                             CalorimeterObjects const& calo_objects,
+                             TimingDetectorObjects const& time_det_objects
+                            ) {
         auto& ctxs = ensure_contexts();
         fill_one(ctxs, spectrometer_tracks, *ctxs.spectrometer_track_multiplicity);
     }
@@ -354,8 +405,17 @@ class RecoHistogrammer {
 // No-op observer for benchmarking pure framework overhead.
 class RecoNoop {
    public:
-    void observe(SpectrometerTracks const&, SimHits const&, SimParticles const&) {}
-    void observe_tracks_only(SpectrometerTracks const&) {}
+    void observe(SpectrometerTracks const&,
+                 UpstreamTaggerObjects const&,
+                 SurroundTaggerObjects const&,
+                 CalorimeterObjects const&,
+                 TimingDetectorObjects const&,
+                 SimHits const&, SimParticles const&) {}
+    void observe_tracks_only(SpectrometerTracks const&,
+                             UpstreamTaggerObjects const&,
+                             SurroundTaggerObjects const&,
+                             CalorimeterObjects const&,
+                             TimingDetectorObjects const&) {}
 };
 
 }  // namespace
@@ -367,7 +427,6 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     auto rntuple_file =
         config.get<std::string>("rntuple_file", std::string{"reconstructed_objects.root"});
     auto histo_file = config.get<std::string>("histo_file", std::string{"reco_validation.root"});
-    auto creator = config.get<std::string>("creator", std::string{"fit_seed"});
     auto layer = config.get<std::string>("layer", std::string{"spill"});
     auto isSim = config.get<bool>("simulation", false);
 
@@ -386,7 +445,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
     // product_selector's members move from whatever they are given (even
     // lvalues), so hand each selector its own identifier copies.
-    auto selector = [&creator, &layer](char const* suffix) {
+    auto selector = [](char const* creator, char const* layer, char const* suffix) {
         return product_selector{.creator = phlex::experimental::identifier{creator},
                                 .layer = phlex::experimental::identifier{layer},
                                 .suffix = phlex::experimental::identifier{suffix}};
@@ -402,11 +461,20 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         auto noop = m.make<RecoNoop>();
         if (isSim) {
             noop.observe("noop", &RecoNoop::observe, concurrency::unlimited)
-                .input_family(selector("track_fit_result"), passthrough("sim_hits"),
+                .input_family(selector("fit_seed", "seed", "track_fit_result"),
+                              selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
+                              selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
+                              selector("calorimeter_reco", "spill", "calorimeter_reco"),
+                              selector("timing_detector_reco", "spill", "timing_detector_reco"),                              
+                              passthrough("sim_hits"),
                               passthrough("sim_particles"));
         } else {
             noop.observe("noop", &RecoNoop::observe_tracks_only, concurrency::unlimited)
-                .input_family(selector("track_fit_result"));
+                .input_family(selector("fit_seed", "seed", "track_fit_result"),
+                              selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
+                              selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
+                              selector("calorimeter_reco", "spill", "calorimeter_reco"),
+                              selector("timing_detector_reco", "spill", "timing_detector_reco"));
         }
         return;
     }
@@ -416,7 +484,27 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     writer
         .observe("write_spectrometer_tracks", &HitRNTupleWriter::write_spectrometer_tracks,
                  concurrency::unlimited)
-        .input_family(selector("track_fit_result"));
+        .input_family(selector("fit_seed", "seed", "track_fit_result"));
+
+    writer
+        .observe("write_upstream_tagger", &HitRNTupleWriter::write_upstream_tagger,
+                concurrency::unlimited)
+        .input_family(selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"));
+
+    writer
+        .observe("write_surround_tagger", &HitRNTupleWriter::write_surround_tagger,
+                concurrency::unlimited)
+        .input_family(selector("surround_tagger_reco", "spill", "surround_tagger_reco"));
+
+    writer
+        .observe("write_calorimeter", &HitRNTupleWriter::write_calorimeter,
+                concurrency::unlimited)
+        .input_family(selector("calorimeter_reco", "spill", "calorimeter_reco"));
+
+    writer
+        .observe("write_timing_detector", &HitRNTupleWriter::write_timing_detector,
+                concurrency::unlimited)
+        .input_family(selector("timing_detector_reco", "spill", "timing_detector_reco"));
 
     if (isSim) {
         writer.observe("write_sim_hits", &HitRNTupleWriter::write_sim_hits, concurrency::unlimited)
@@ -434,11 +522,20 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     // rather than sharing one call with a variable number of selectors.
     if (isSim) {
         histogrammer.observe("validate", &RecoHistogrammer::observe, concurrency::unlimited)
-            .input_family(selector("track_fit_result"), passthrough("sim_hits"),
+            .input_family(selector("fit_seed", "seed", "track_fit_result"),
+                          selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
+                          selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
+                          selector("calorimeter_reco", "spill", "calorimeter_reco"),
+                          selector("timing_detector_reco", "spill", "timing_detector_reco"),
+                          passthrough("sim_hits"),
                           passthrough("sim_particles"));
     } else {
         histogrammer
             .observe("validate", &RecoHistogrammer::observe_tracks_only, concurrency::unlimited)
-            .input_family(selector("track_fit_result"));
+            .input_family(selector("fit_seed", "seed", "track_fit_result"),
+                          selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
+                          selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
+                          selector("calorimeter_reco", "spill", "calorimeter_reco"),
+                          selector("timing_detector_reco", "spill", "timing_detector_reco"));
     }
 }

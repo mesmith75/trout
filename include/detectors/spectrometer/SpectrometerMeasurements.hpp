@@ -23,6 +23,7 @@
 #include <Acts/Geometry/GeometryIdentifier.hpp>
 #include <Acts/Geometry/TrackingGeometry.hpp>
 #include <Acts/Surfaces/Surface.hpp>
+#include <Acts/Utilities/CalibrationContext.hpp>
 #include <SHiP/RecHit.hpp>
 #include <cmath>
 #include <limits>
