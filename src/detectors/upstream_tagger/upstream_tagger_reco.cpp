@@ -15,7 +15,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
              return particles;
          },
          concurrency::unlimited)
-        .input_family(product_selector{
-            .creator = "rntuple_source", .layer = layer, .suffix = "ubt_hits"})
+        .input_family(
+            product_selector{.creator = "rntuple_source", .layer = layer, .suffix = "ubt_hits"})
         .output_product_suffixes("upstream_tagger_reco");
 }

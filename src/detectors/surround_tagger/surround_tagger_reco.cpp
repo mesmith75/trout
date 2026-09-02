@@ -15,7 +15,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
              return particles;
          },
          concurrency::unlimited)
-        .input_family(product_selector{
-            .creator = "rntuple_source", .layer = layer, .suffix = "sbt_hits"})
+        .input_family(
+            product_selector{.creator = "rntuple_source", .layer = layer, .suffix = "sbt_hits"})
         .output_product_suffixes("surround_tagger_reco");
 }

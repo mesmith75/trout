@@ -47,7 +47,7 @@ local simulation = true;
     timing_detector_reco: {
         cpp: 'timing_detector_reco',
         layer: 'spill'
-    },    
+    },
     rec_output: {
       cpp: 'rec_output_module',
       creator: 'fit_seed',

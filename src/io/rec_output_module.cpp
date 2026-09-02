@@ -9,13 +9,17 @@
 //     its own RNTuple within a single ROOT output file
 //   - Validation histograms
 
+#include "HistoFileService.hpp"
 #include "TFile.h"
 #include "TH1D.h"
+#include "detectors/calorimeter/calorimeter_histogrammer.hpp"
+#include "detectors/spectrometer/SpectrometerHistogrammer.hpp"
+#include "detectors/surround_tagger/surround_tagger_histogrammer.hpp"
+#include "detectors/timing_detector/timing_detector_histogrammer.hpp"
+#include "detectors/upstream_tagger/upstream_tagger_histogrammer.hpp"
 #include "phlex/core/product_selector.hpp"
 #include "phlex/module.hpp"
 
-#include <ROOT/Hist/ConvertToTH1.hxx>
-#include <ROOT/RFile.hxx>
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
@@ -23,15 +27,16 @@
 #include <ROOT/RNTupleFillStatus.hxx>
 #include <ROOT/RNTupleModel.hxx>
 #include <ROOT/RNTupleParallelWriter.hxx>
+#include <tuple>
 #include <type_traits>
 
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/TrackFitResult.hpp>
-#include <SHiP/detectors/UBTHit.hpp>
-#include <SHiP/detectors/SBTHit.hpp>
 #include <SHiP/detectors/CaloHit.hpp>
+#include <SHiP/detectors/SBTHit.hpp>
 #include <SHiP/detectors/TimeDetHit.hpp>
+#include <SHiP/detectors/UBTHit.hpp>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -52,7 +57,6 @@ namespace {
 using ROOT::REntry;
 using ROOT::RNTupleModel;
 using ROOT::RNTupleParallelWriter;
-using ROOT::Experimental::RFile;
 using ROOT::Experimental::RHist;
 using ROOT::Experimental::RHistConcurrentFiller;
 using ROOT::Experimental::RHistFillContext;
@@ -133,71 +137,50 @@ class TypedHitWriter {
 class HitRNTupleWriter {
    public:
     explicit HitRNTupleWriter(std::string const& filename, bool isSim)
-        : file_service_{filename}, spectrometer_tracks_{file_service_, "spectrometer_tracks"},
-                                   ubt_objects_{file_service_, "upstream_tagger"},
-                                   sbt_objects_{file_service_, "surround_tagger"},
-                                   calo_objects_{file_service_, "calorimeter"},
-                                   time_det_objects_{file_service_, "timing_detector"} {
+        : file_service_{filename},
+          writers_{TypedHitWriter<SHiP::TrackFitResult>{file_service_, "spectrometer_tracks"},
+                   TypedHitWriter<SHiP::UBTHit>{file_service_, "upstream_tagger"},
+                   TypedHitWriter<SHiP::SBTHit>{file_service_, "surround_tagger"},
+                   TypedHitWriter<SHiP::CaloHit>{file_service_, "calorimeter"},
+                   TypedHitWriter<SHiP::TimeDetHit>{file_service_, "timing_detector"}} {
         if (isSim) {
             simhits_.emplace(file_service_, "sim_hits");
             simparticles_.emplace(file_service_, "sim_particles");
         }
     }
 
-    void write_spectrometer_tracks(std::vector<SHiP::TrackFitResult> const& tracks) {
-        for (auto const& track : tracks) {
-            spectrometer_tracks_.write(track);
-        }
+    // Bind a specific Hit instantiation at each phlex registration site,
+    // e.g. &HitRNTupleWriter::write<SHiP::TrackFitResult> — std::get<T>
+    // picks the one TypedHitWriter<Hit> in writers_ by type, so this covers
+    // every non-sim writer without a method per type.
+    template <typename Hit>
+    void write(std::vector<Hit> const& hits) {
+        write_all(hits, std::get<TypedHitWriter<Hit>>(writers_));
     }
 
-    void write_upstream_tagger(std::vector<SHiP::UBTHit> const& hits) {
-        for (auto const& hit : hits) {
-            ubt_objects_.write(hit);
-        }
-    }
-
-    void write_surround_tagger(std::vector<SHiP::SBTHit> const& hits) {
-        for (auto const& hit : hits) {
-            sbt_objects_.write(hit);
-        }
-    }
-
-    void write_calorimeter(std::vector<SHiP::CaloHit> const& hits) {
-        for (auto const& hit : hits) {
-            calo_objects_.write(hit);
-        }
-    }
-
-    void write_timing_detector(std::vector<SHiP::TimeDetHit> const& hits) {
-        for (auto const& hit : hits) {
-            time_det_objects_.write(hit);
-        }
-    }
-
-    // Only ever registered as an observer (see PHLEX_REGISTER_ALGORITHMS
-    // below) when isSim is true, so simhits_ is guaranteed to hold a value
-    // whenever this is actually called.
-    void write_sim_hits(std::vector<SHiP::SimHit> const& hits) {
-        for (auto const& hit : hits) {
-            simhits_->write(hit);
-        }
-    }
+    // Kept separate: only conditionally constructed (when isSim), so they
+    // can't live in the always-present writers_ tuple.
+    void write_sim_hits(std::vector<SHiP::SimHit> const& hits) { write_all(hits, *simhits_); }
 
     void write_sim_particles(std::vector<SHiP::SimParticle> const& particles) {
-        for (auto const& ptcl : particles) {
-            simparticles_->write(ptcl);
-        }
+        write_all(particles, *simparticles_);
     }
 
    private:
+    template <typename Hit>
+    static void write_all(std::vector<Hit> const& hits, TypedHitWriter<Hit>& writer) {
+        for (auto const& hit : hits) {
+            writer.write(hit);
+        }
+    }
+
     // Declared first so it is destroyed last.
     RNTupleFileService file_service_;
 
-    TypedHitWriter<SHiP::TrackFitResult> spectrometer_tracks_;
-    TypedHitWriter<SHiP::UBTHit> ubt_objects_;
-    TypedHitWriter<SHiP::SBTHit> sbt_objects_;
-    TypedHitWriter<SHiP::CaloHit> calo_objects_;
-    TypedHitWriter<SHiP::TimeDetHit> time_det_objects_;
+    std::tuple<TypedHitWriter<SHiP::TrackFitResult>, TypedHitWriter<SHiP::UBTHit>,
+               TypedHitWriter<SHiP::SBTHit>, TypedHitWriter<SHiP::CaloHit>,
+               TypedHitWriter<SHiP::TimeDetHit>>
+        writers_;
 
     // Left unconstructed (no RNTuple created at all) unless isSim
     std::optional<TypedHitWriter<SHiP::SimHit>> simhits_;
@@ -212,209 +195,102 @@ std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
     return std::make_shared<HistD>(static_cast<std::uint64_t>(nbins), std::make_pair(low, high));
 }
 
-// Validation histograms for reconstructed objects (thread-safe via per-thread
-// RHistFillContext atomic fillers)
-class RecoHistogrammer {
+// Simulation-truth validation: sim_hits/sim_particles multiplicity and
+// position distributions. Only ever registered when isSim (see
+// PHLEX_REGISTER_ALGORITHMS below).
+class SimTruthHistogrammer {
    public:
-    explicit RecoHistogrammer(std::string filename, bool isSim = false)
-        : filename_{std::move(filename)},
-          h_spectrometer_track_multiplicity_{make_hist(1000, -0.5, 999.5)},
-          h_ref_x_{make_hist(200, -3000., 3000.)},
-          h_ref_y_{make_hist(200, -6000., 6000.)},
-          h_ref_z_{make_hist(200, -1000., 120000.)},
-          f_spectrometer_track_multiplicity_{h_spectrometer_track_multiplicity_},
-          f_ref_x_{h_ref_x_},
-          f_ref_y_{h_ref_y_},
-          f_ref_z_{h_ref_z_},
-          m_isSim{isSim} {
-        if (isSim) {
-            // Plain assignment, not brace-init: h_sim_*_ are shared_ptr
-            // (default-null, fine to assign post-construction).
-            h_sim_hit_multiplicity_ = make_hist(1000, -0.5, 999.5);
-            h_sim_particle_multiplicity_ = make_hist(1000, -0.5, 999.5);
-            h_sim_hit_x_ = make_hist(200, -3000., 3000.);
-            h_sim_hit_y_ = make_hist(200, -6000., 6000.);
-            h_sim_hit_z_ = make_hist(200, -1000., 120000.);
-            h_sim_particle_vtx_x_ = make_hist(200, -100., 100.);
-            h_sim_particle_vtx_y_ = make_hist(200, -100., 100.);
-            h_sim_particle_vtx_z_ = make_hist(200, -100., 1000.);
+    explicit SimTruthHistogrammer(std::shared_ptr<HistoFileService> file_service)
+        : file_service_{std::move(file_service)},
+          h_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},
+          h_particle_multiplicity_{make_hist(1000, -0.5, 999.5)},
+          h_hit_x_{make_hist(200, -3000., 3000.)},
+          h_hit_y_{make_hist(200, -6000., 6000.)},
+          h_hit_z_{make_hist(200, -1000., 120000.)},
+          h_particle_vtx_x_{make_hist(200, -100., 100.)},
+          h_particle_vtx_y_{make_hist(200, -100., 100.)},
+          h_particle_vtx_z_{make_hist(200, -100., 1000.)},
+          f_hit_multiplicity_{h_hit_multiplicity_},
+          f_particle_multiplicity_{h_particle_multiplicity_},
+          f_hit_x_{h_hit_x_},
+          f_hit_y_{h_hit_y_},
+          f_hit_z_{h_hit_z_},
+          f_particle_vtx_x_{h_particle_vtx_x_},
+          f_particle_vtx_y_{h_particle_vtx_y_},
+          f_particle_vtx_z_{h_particle_vtx_z_} {}
 
-            // f_sim_*_ are RHistConcurrentFiller, which has no default
-            // constructor (only one taking a shared_ptr<RHist>), so they
-            // must be optional to stay unconstructed until here.
-            f_sim_hit_multiplicity_.emplace(h_sim_hit_multiplicity_);
-            f_sim_particle_multiplicity_.emplace(h_sim_particle_multiplicity_);
-            f_sim_hit_x_.emplace(h_sim_hit_x_);
-            f_sim_hit_y_.emplace(h_sim_hit_y_);
-            f_sim_hit_z_.emplace(h_sim_hit_z_);
-            f_sim_particle_vtx_x_.emplace(h_sim_particle_vtx_x_);
-            f_sim_particle_vtx_y_.emplace(h_sim_particle_vtx_y_);
-            f_sim_particle_vtx_z_.emplace(h_sim_particle_vtx_z_);
+    void observe(SimHits const& sim_hits, SimParticles const& sim_particles) {
+        auto& ctxs = ensure_contexts();
+        ctxs.hit_multiplicity->Fill(static_cast<double>(sim_hits.size()));
+        for (auto const& hit : sim_hits) {
+            ctxs.hit_x->Fill(hit.position[0]);
+            ctxs.hit_y->Fill(hit.position[1]);
+            ctxs.hit_z->Fill(hit.position[2]);
+        }
+        ctxs.particle_multiplicity->Fill(static_cast<double>(sim_particles.size()));
+        for (auto const& particle : sim_particles) {
+            ctxs.particle_vtx_x->Fill(particle.vertex[0]);
+            ctxs.particle_vtx_y->Fill(particle.vertex[1]);
+            ctxs.particle_vtx_z->Fill(particle.vertex[2]);
         }
     }
 
-    // Full signature — used when sim_hits/sim_particles are actually being
-    // read (mode: simulation input available).
-    void observe(SpectrometerTracks const& spectrometer_tracks,
-                 UpstreamTaggerObjects const& ubt_objects,
-                 SurroundTaggerObjects const& sbt_objects,
-                 CalorimeterObjects const& calo_objects,
-                 TimingDetectorObjects const* time_det_objects,
-                 SimHits const& sim_hits,
-                 SimParticles const& sim_particles) {
-        auto& ctxs = ensure_contexts();
-        fill_one(ctxs, spectrometer_tracks, *ctxs.spectrometer_track_multiplicity);
-        fill_one(ctxs, sim_hits, *ctxs.sim_hit_multiplicity);
-        fill_one(ctxs, sim_particles, *ctxs.sim_particle_multiplicity);
-    }
-
-    // Track-only signature — used when there is no sim_hits/sim_particles
-    // input to depend on at all (e.g. real data, no simulation truth), since
-    // phlex requires input_family's selector count to match the registered
-    // function's arity exactly.
-    void observe_tracks_only(SpectrometerTracks const& spectrometer_tracks,
-                             UpstreamTaggerObjects const& ubt_objects,
-                             SurroundTaggerObjects const& sbt_objects,
-                             CalorimeterObjects const& calo_objects,
-                             TimingDetectorObjects const& time_det_objects
-                            ) {
-        auto& ctxs = ensure_contexts();
-        fill_one(ctxs, spectrometer_tracks, *ctxs.spectrometer_track_multiplicity);
-    }
-
-    ~RecoHistogrammer() {
-        // Destroy per-thread fill contexts so their stats flush back into the
-        // histograms before we read them, and so the concurrent fillers see no
-        // live contexts at their own destruction (which would std::terminate).
+    ~SimTruthHistogrammer() {
         fill_contexts_.clear();
-        try {
-            auto file = RFile::Recreate(filename_);
-            auto put = [&](char const* name, char const* title, HistD const& h) {
-                auto th1 = ROOT::Experimental::Hist::ConvertToTH1D(h);
-                th1->SetNameTitle(name, title);
-                file->Put(name, *th1);
-            };
-            put("h_spectrometer_track_multiplicity", "Spectrometer tracks per event;N;Events",
-                *h_spectrometer_track_multiplicity_);
-            put("h_ref_x", "Spectrometer track reference x position;x [mm];Entries", *h_ref_x_);
-            put("h_ref_y", "Spectrometer track reference y position;y [mm];Entries", *h_ref_y_);
-            put("h_ref_z", "Spectrometer track reference z position;z [mm];Entries", *h_ref_z_);
-
-            if (h_sim_hit_multiplicity_) {
-                put("h_sim_hit_multiplicity", "Simulated hits per event;N;Events",
-                    *h_sim_hit_multiplicity_);
-                put("h_sim_particle_multiplicity", "Simulated particles per event;N;Events",
-                    *h_sim_particle_multiplicity_);
-                put("h_sim_hit_x", "Simulated hit x position;x [mm];Entries", *h_sim_hit_x_);
-                put("h_sim_hit_y", "Simulated hit y position;y [mm];Entries", *h_sim_hit_y_);
-                put("h_sim_hit_z", "Simulated hit z position;z [mm];Entries", *h_sim_hit_z_);
-                put("h_sim_particle_vtx_x", "Simulated particle vtx x position;x [mm];Entries",
-                    *h_sim_particle_vtx_x_);
-                put("h_sim_particle_vtx_y", "Simulated particle vtx y position;y [mm];Entries",
-                    *h_sim_particle_vtx_y_);
-                put("h_sim_particle_vtx_z", "Simulated particle vtx z position;z [mm];Entries",
-                    *h_sim_particle_vtx_z_);
-            }
-        } catch (std::exception const& e) {
-            // RException, filesystem errors etc. — must not escape the destructor.
-            try {
-                spdlog::error(
-                    "rec_output_module: failed to write validation histograms to '{}': {}",
-                    filename_, e.what());
-            } catch (...) {
-            }
-        }
+        file_service_->put("h_sim_hit_multiplicity", "Simulated hits per event;N;Events",
+                           *h_hit_multiplicity_);
+        file_service_->put("h_sim_particle_multiplicity", "Simulated particles per event;N;Events",
+                           *h_particle_multiplicity_);
+        file_service_->put("h_sim_hit_x", "Simulated hit x position;x [mm];Entries", *h_hit_x_);
+        file_service_->put("h_sim_hit_y", "Simulated hit y position;y [mm];Entries", *h_hit_y_);
+        file_service_->put("h_sim_hit_z", "Simulated hit z position;z [mm];Entries", *h_hit_z_);
+        file_service_->put("h_sim_particle_vtx_x",
+                           "Simulated particle vtx x position;x [mm];Entries", *h_particle_vtx_x_);
+        file_service_->put("h_sim_particle_vtx_y",
+                           "Simulated particle vtx y position;y [mm];Entries", *h_particle_vtx_y_);
+        file_service_->put("h_sim_particle_vtx_z",
+                           "Simulated particle vtx z position;z [mm];Entries", *h_particle_vtx_z_);
     }
 
    private:
-    struct FillContexts;
+    struct FillContexts {
+        std::shared_ptr<ContextD> hit_multiplicity, particle_multiplicity;
+        std::shared_ptr<ContextD> hit_x, hit_y, hit_z;
+        std::shared_ptr<ContextD> particle_vtx_x, particle_vtx_y, particle_vtx_z;
+    };
 
     FillContexts& ensure_contexts() {
         auto& ctxs = fill_contexts_.local();
-        if (!ctxs.spectrometer_track_multiplicity) {
-            ctxs.spectrometer_track_multiplicity =
-                f_spectrometer_track_multiplicity_.CreateFillContext();
-            ctxs.ref_x = f_ref_x_.CreateFillContext();
-            ctxs.ref_y = f_ref_y_.CreateFillContext();
-            ctxs.ref_z = f_ref_z_.CreateFillContext();
-            if (m_isSim) {
-                ctxs.sim_hit_multiplicity = f_sim_hit_multiplicity_->CreateFillContext();
-                ctxs.sim_particle_multiplicity = f_sim_particle_multiplicity_->CreateFillContext();
-                ctxs.sim_hit_x = f_sim_hit_x_->CreateFillContext();
-                ctxs.sim_hit_y = f_sim_hit_y_->CreateFillContext();
-                ctxs.sim_hit_z = f_sim_hit_z_->CreateFillContext();
-                ctxs.sim_particle_vtx_x = f_sim_particle_vtx_x_->CreateFillContext();
-                ctxs.sim_particle_vtx_y = f_sim_particle_vtx_y_->CreateFillContext();
-                ctxs.sim_particle_vtx_z = f_sim_particle_vtx_z_->CreateFillContext();
-            }
+        if (!ctxs.hit_multiplicity) {
+            ctxs.hit_multiplicity = f_hit_multiplicity_.CreateFillContext();
+            ctxs.particle_multiplicity = f_particle_multiplicity_.CreateFillContext();
+            ctxs.hit_x = f_hit_x_.CreateFillContext();
+            ctxs.hit_y = f_hit_y_.CreateFillContext();
+            ctxs.hit_z = f_hit_z_.CreateFillContext();
+            ctxs.particle_vtx_x = f_particle_vtx_x_.CreateFillContext();
+            ctxs.particle_vtx_y = f_particle_vtx_y_.CreateFillContext();
+            ctxs.particle_vtx_z = f_particle_vtx_z_.CreateFillContext();
         }
         return ctxs;
     }
 
-    static void fill_one(FillContexts& ctxs, auto const& hits, ContextD& multiplicity) {
-        multiplicity.Fill(static_cast<double>(hits.size()));
-        using HitT = std::remove_cvref_t<decltype(*std::begin(hits))>;
-        for (auto const& hit : hits) {
-            // FIXME: This is a fudge until the hit classes get sorted
-            if constexpr (std::is_same_v<HitT, SHiP::SimHit>) {
-                ctxs.sim_hit_x->Fill(hit.position[0]);
-                ctxs.sim_hit_y->Fill(hit.position[1]);
-                ctxs.sim_hit_z->Fill(hit.position[2]);
-            } else if constexpr (std::is_same_v<HitT, SHiP::SimParticle>) {
-                ctxs.sim_particle_vtx_x->Fill(hit.vertex[0]);
-                ctxs.sim_particle_vtx_y->Fill(hit.vertex[1]);
-                ctxs.sim_particle_vtx_z->Fill(hit.vertex[2]);
-            } else {
-                ctxs.ref_x->Fill(hit.refLoc[0]);
-                ctxs.ref_y->Fill(hit.refLoc[1]);
-                ctxs.ref_z->Fill(hit.refLoc[2]);
-            }
-        }
-    }
-
-    struct FillContexts {
-        std::shared_ptr<ContextD> spectrometer_track_multiplicity;
-        std::shared_ptr<ContextD> sim_hit_multiplicity;
-        std::shared_ptr<ContextD> sim_particle_multiplicity;
-        std::shared_ptr<ContextD> ref_x;
-        std::shared_ptr<ContextD> ref_y;
-        std::shared_ptr<ContextD> ref_z;
-        std::shared_ptr<ContextD> sim_hit_x;
-        std::shared_ptr<ContextD> sim_hit_y;
-        std::shared_ptr<ContextD> sim_hit_z;
-        std::shared_ptr<ContextD> sim_particle_vtx_x;
-        std::shared_ptr<ContextD> sim_particle_vtx_y;
-        std::shared_ptr<ContextD> sim_particle_vtx_z;
-    };
-
-    std::string filename_;
-    std::shared_ptr<HistD> h_spectrometer_track_multiplicity_, h_sim_hit_multiplicity_,
-        h_sim_particle_multiplicity_;
-    std::shared_ptr<HistD> h_ref_x_, h_ref_y_, h_ref_z_, h_sim_hit_x_, h_sim_hit_y_, h_sim_hit_z_,
-        h_sim_particle_vtx_x_, h_sim_particle_vtx_y_, h_sim_particle_vtx_z_;
-    FillerD f_spectrometer_track_multiplicity_, f_ref_x_, f_ref_y_, f_ref_z_;
-    // Optional: RHistConcurrentFiller has no default constructor, and these
-    // are only ever constructed (via emplace, above) when isSim is set.
-    std::optional<FillerD> f_sim_hit_multiplicity_, f_sim_particle_multiplicity_;
-    std::optional<FillerD> f_sim_hit_x_, f_sim_hit_y_, f_sim_hit_z_, f_sim_particle_vtx_x_,
-        f_sim_particle_vtx_y_, f_sim_particle_vtx_z_;
+    std::shared_ptr<HistoFileService> file_service_;
+    std::shared_ptr<HistD> h_hit_multiplicity_, h_particle_multiplicity_;
+    std::shared_ptr<HistD> h_hit_x_, h_hit_y_, h_hit_z_, h_particle_vtx_x_, h_particle_vtx_y_,
+        h_particle_vtx_z_;
+    FillerD f_hit_multiplicity_, f_particle_multiplicity_;
+    FillerD f_hit_x_, f_hit_y_, f_hit_z_, f_particle_vtx_x_, f_particle_vtx_y_, f_particle_vtx_z_;
     tbb::enumerable_thread_specific<FillContexts> fill_contexts_;
-    bool m_isSim = false;
 };
 
 // No-op observer for benchmarking pure framework overhead.
 class RecoNoop {
    public:
-    void observe(SpectrometerTracks const&,
-                 UpstreamTaggerObjects const&,
-                 SurroundTaggerObjects const&,
-                 CalorimeterObjects const&,
-                 TimingDetectorObjects const&,
-                 SimHits const&, SimParticles const&) {}
-    void observe_tracks_only(SpectrometerTracks const&,
-                             UpstreamTaggerObjects const&,
-                             SurroundTaggerObjects const&,
-                             CalorimeterObjects const&,
+    void observe(SpectrometerTracks const&, UpstreamTaggerObjects const&,
+                 SurroundTaggerObjects const&, CalorimeterObjects const&,
+                 TimingDetectorObjects const&, SimHits const&, SimParticles const&) {}
+    void observe_tracks_only(SpectrometerTracks const&, UpstreamTaggerObjects const&,
+                             SurroundTaggerObjects const&, CalorimeterObjects const&,
                              TimingDetectorObjects const&) {}
 };
 
@@ -451,10 +327,17 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                                 .suffix = phlex::experimental::identifier{suffix}};
     };
 
-    auto passthrough = [&layer](char const* suffix) {
-        return product_selector{.creator = "rntuple_source",
-                                .layer = "spill",
-                                .suffix = phlex::experimental::identifier{suffix}};
+    auto passthrough = [&](char const* suffix) {
+        return selector("rntuple_source", "spill", suffix);
+    };
+
+    // Registers a phlex observer under `name`, wired to the single
+    // `sel` input selector — collapses the repeated
+    // `writer.observe(...).input_family(...)` pattern below to one line
+    // per writer method.
+    auto register_writer = [](auto& target, char const* name, auto member_ptr,
+                              product_selector sel) {
+        target.observe(name, member_ptr, concurrency::unlimited).input_family(std::move(sel));
     };
 
     if (mode == "noop") {
@@ -465,9 +348,8 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                               selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
                               selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
                               selector("calorimeter_reco", "spill", "calorimeter_reco"),
-                              selector("timing_detector_reco", "spill", "timing_detector_reco"),                              
-                              passthrough("sim_hits"),
-                              passthrough("sim_particles"));
+                              selector("timing_detector_reco", "spill", "timing_detector_reco"),
+                              passthrough("sim_hits"), passthrough("sim_particles"));
         } else {
             noop.observe("noop", &RecoNoop::observe_tracks_only, concurrency::unlimited)
                 .input_family(selector("fit_seed", "seed", "track_fit_result"),
@@ -481,61 +363,54 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
     auto writer = m.make<HitRNTupleWriter>(rntuple_file, isSim);
 
-    writer
-        .observe("write_spectrometer_tracks", &HitRNTupleWriter::write_spectrometer_tracks,
-                 concurrency::unlimited)
-        .input_family(selector("fit_seed", "seed", "track_fit_result"));
-
-    writer
-        .observe("write_upstream_tagger", &HitRNTupleWriter::write_upstream_tagger,
-                concurrency::unlimited)
-        .input_family(selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"));
-
-    writer
-        .observe("write_surround_tagger", &HitRNTupleWriter::write_surround_tagger,
-                concurrency::unlimited)
-        .input_family(selector("surround_tagger_reco", "spill", "surround_tagger_reco"));
-
-    writer
-        .observe("write_calorimeter", &HitRNTupleWriter::write_calorimeter,
-                concurrency::unlimited)
-        .input_family(selector("calorimeter_reco", "spill", "calorimeter_reco"));
-
-    writer
-        .observe("write_timing_detector", &HitRNTupleWriter::write_timing_detector,
-                concurrency::unlimited)
-        .input_family(selector("timing_detector_reco", "spill", "timing_detector_reco"));
+    register_writer(writer, "write_spectrometer_tracks",
+                    &HitRNTupleWriter::write<SHiP::TrackFitResult>,
+                    selector("fit_seed", "seed", "track_fit_result"));
+    register_writer(writer, "write_upstream_tagger", &HitRNTupleWriter::write<SHiP::UBTHit>,
+                    selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"));
+    register_writer(writer, "write_surround_tagger", &HitRNTupleWriter::write<SHiP::SBTHit>,
+                    selector("surround_tagger_reco", "spill", "surround_tagger_reco"));
+    register_writer(writer, "write_calorimeter", &HitRNTupleWriter::write<SHiP::CaloHit>,
+                    selector("calorimeter_reco", "spill", "calorimeter_reco"));
+    register_writer(writer, "write_timing_detector", &HitRNTupleWriter::write<SHiP::TimeDetHit>,
+                    selector("timing_detector_reco", "spill", "timing_detector_reco"));
 
     if (isSim) {
-        writer.observe("write_sim_hits", &HitRNTupleWriter::write_sim_hits, concurrency::unlimited)
-            .input_family(passthrough("sim_hits"));
-
-        writer
-            .observe("write_sim_particles", &HitRNTupleWriter::write_sim_particles,
-                     concurrency::unlimited)
-            .input_family(passthrough("sim_particles"));
+        register_writer(writer, "write_sim_hits", &HitRNTupleWriter::write_sim_hits,
+                        passthrough("sim_hits"));
+        register_writer(writer, "write_sim_particles", &HitRNTupleWriter::write_sim_particles,
+                        passthrough("sim_particles"));
     }
 
-    auto histogrammer = m.make<RecoHistogrammer>(histo_file, isSim);
-    // input_family's selector count must match the registered function's
-    // arity exactly, so the sim/no-sim branches pick different overloads
-    // rather than sharing one call with a variable number of selectors.
+    // One shared output file; each histogrammer below Put()s its own
+    // histograms into it at its own destruction (see HistoFileService).
+    auto histo_file_service = std::make_shared<HistoFileService>(histo_file);
+
+    auto spectrometer_histo = m.make<SpectrometerHistogrammer>(histo_file_service);
+    register_writer(spectrometer_histo, "validate_spectrometer", &SpectrometerHistogrammer::observe,
+                    selector("fit_seed", "seed", "track_fit_result"));
+
+    auto ubt_histo = m.make<UpstreamTaggerHistogrammer>(histo_file_service);
+    register_writer(ubt_histo, "validate_upstream_tagger", &UpstreamTaggerHistogrammer::observe,
+                    selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"));
+
+    auto sbt_histo = m.make<SurroundTaggerHistogrammer>(histo_file_service);
+    register_writer(sbt_histo, "validate_surround_tagger", &SurroundTaggerHistogrammer::observe,
+                    selector("surround_tagger_reco", "spill", "surround_tagger_reco"));
+
+    auto calo_histo = m.make<CalorimeterHistogrammer>(histo_file_service);
+    register_writer(calo_histo, "validate_calorimeter", &CalorimeterHistogrammer::observe,
+                    selector("calorimeter_reco", "spill", "calorimeter_reco"));
+
+    auto time_det_histo = m.make<TimingDetectorHistogrammer>(histo_file_service);
+    register_writer(time_det_histo, "validate_timing_detector",
+                    &TimingDetectorHistogrammer::observe,
+                    selector("timing_detector_reco", "spill", "timing_detector_reco"));
+
     if (isSim) {
-        histogrammer.observe("validate", &RecoHistogrammer::observe, concurrency::unlimited)
-            .input_family(selector("fit_seed", "seed", "track_fit_result"),
-                          selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
-                          selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
-                          selector("calorimeter_reco", "spill", "calorimeter_reco"),
-                          selector("timing_detector_reco", "spill", "timing_detector_reco"),
-                          passthrough("sim_hits"),
-                          passthrough("sim_particles"));
-    } else {
-        histogrammer
-            .observe("validate", &RecoHistogrammer::observe_tracks_only, concurrency::unlimited)
-            .input_family(selector("fit_seed", "seed", "track_fit_result"),
-                          selector("upstream_tagger_reco", "spill", "upstream_tagger_reco"),
-                          selector("surround_tagger_reco", "spill", "surround_tagger_reco"),
-                          selector("calorimeter_reco", "spill", "calorimeter_reco"),
-                          selector("timing_detector_reco", "spill", "timing_detector_reco"));
+        auto sim_truth_histo = m.make<SimTruthHistogrammer>(histo_file_service);
+        sim_truth_histo
+            .observe("validate_sim_truth", &SimTruthHistogrammer::observe, concurrency::unlimited)
+            .input_family(passthrough("sim_hits"), passthrough("sim_particles"));
     }
 }
