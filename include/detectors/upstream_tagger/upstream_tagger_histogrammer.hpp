@@ -14,6 +14,7 @@
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
+
 #include <SHiP/detectors/UBTHit.hpp>
 #include <cstdint>
 #include <memory>
@@ -26,7 +27,7 @@ class UpstreamTaggerHistogrammer {
     explicit UpstreamTaggerHistogrammer(std::shared_ptr<HistoFileService> file_service)
         : file_service_{std::move(file_service)},
           h_multiplicity_{std::make_shared<HistD>(static_cast<std::uint64_t>(1000),
-                                                   std::make_pair(-0.5, 999.5))},
+                                                  std::make_pair(-0.5, 999.5))},
           f_multiplicity_{h_multiplicity_} {}
 
     void observe(std::vector<SHiP::UBTHit> const& hits) {
@@ -35,8 +36,8 @@ class UpstreamTaggerHistogrammer {
 
     ~UpstreamTaggerHistogrammer() {
         fill_contexts_.clear();
-        file_service_->put("h_upstream_tagger_multiplicity", "Upstream tagger hits per event;N;Events",
-                           *h_multiplicity_);
+        file_service_->put("h_upstream_tagger_multiplicity",
+                           "Upstream tagger hits per event;N;Events", *h_multiplicity_);
     }
 
    private:

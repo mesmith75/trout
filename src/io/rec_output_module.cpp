@@ -17,6 +17,7 @@
 #include "detectors/surround_tagger/surround_tagger_histogrammer.hpp"
 #include "detectors/timing_detector/timing_detector_histogrammer.hpp"
 #include "detectors/upstream_tagger/upstream_tagger_histogrammer.hpp"
+#include "io/typed_rntuple_writer.hpp"
 #include "phlex/core/product_selector.hpp"
 #include "phlex/module.hpp"
 
@@ -53,139 +54,6 @@
 #include <vector>
 
 namespace {
-
-using ROOT::REntry;
-using ROOT::RNTupleModel;
-using ROOT::RNTupleParallelWriter;
-using ROOT::Experimental::RHist;
-using ROOT::Experimental::RHistConcurrentFiller;
-using ROOT::Experimental::RHistFillContext;
-
-using SpectrometerTracks = std::vector<SHiP::TrackFitResult>;
-using UpstreamTaggerObjects = std::vector<SHiP::UBTHit>;
-using SurroundTaggerObjects = std::vector<SHiP::SBTHit>;
-using CalorimeterObjects = std::vector<SHiP::CaloHit>;
-using TimingDetectorObjects = std::vector<SHiP::TimeDetHit>;
-using SimHits = std::vector<SHiP::SimHit>;
-using SimParticles = std::vector<SHiP::SimParticle>;
-
-class RNTupleFileService {
-   public:
-    explicit RNTupleFileService(std::string const& filename)
-        : file_{TFile::Open(filename.c_str(), "RECREATE")} {
-        if (!file_ || file_->IsZombie()) {
-            throw std::runtime_error{"Could not create ROOT output file: " + filename};
-        }
-    }
-
-    TFile& file() { return *file_; }
-    std::mutex& mutex() { return mutex_; }
-
-   private:
-    // Keep this before file_, or explicitly destroy the writers before this
-    // service is destroyed.
-    std::unique_ptr<TFile> file_;
-    std::mutex mutex_;
-};
-
-template <typename Hit>
-class TypedHitWriter {
-   public:
-    TypedHitWriter(RNTupleFileService& file_service, std::string_view ntuple_name)
-        : file_service_{file_service} {
-        auto model = ROOT::RNTupleModel::CreateBare();
-        model->MakeField<Hit>("hit");
-
-        std::scoped_lock lock{file_service_.mutex()};
-
-        writer_ = ROOT::RNTupleParallelWriter::Append(std::move(model), ntuple_name,
-                                                      file_service_.file());
-    }
-
-    void write(Hit const& hit) {
-        auto& state = states_.local();
-
-        if (!state.context) {
-            state.context = writer_->CreateFillContext();
-            state.entry = state.context->CreateEntry();
-        }
-
-        *state.entry->template GetPtr<Hit>("hit") = hit;
-
-        ROOT::RNTupleFillStatus status;
-        state.context->FillNoFlush(*state.entry, status);
-
-        if (status.ShouldFlushCluster()) {
-            state.context->FlushColumns();
-
-            std::scoped_lock lock{file_service_.mutex()};
-            state.context->FlushCluster();
-        }
-    }
-
-   private:
-    struct FillState {
-        std::shared_ptr<ROOT::RNTupleFillContext> context;
-        std::unique_ptr<ROOT::REntry> entry;
-    };
-
-    RNTupleFileService& file_service_;
-    std::unique_ptr<ROOT::RNTupleParallelWriter> writer_;
-    tbb::enumerable_thread_specific<FillState> states_;
-};
-
-class HitRNTupleWriter {
-   public:
-    explicit HitRNTupleWriter(std::string const& filename, bool isSim)
-        : file_service_{filename},
-          writers_{TypedHitWriter<SHiP::TrackFitResult>{file_service_, "spectrometer_tracks"},
-                   TypedHitWriter<SHiP::UBTHit>{file_service_, "upstream_tagger"},
-                   TypedHitWriter<SHiP::SBTHit>{file_service_, "surround_tagger"},
-                   TypedHitWriter<SHiP::CaloHit>{file_service_, "calorimeter"},
-                   TypedHitWriter<SHiP::TimeDetHit>{file_service_, "timing_detector"}} {
-        if (isSim) {
-            simhits_.emplace(file_service_, "sim_hits");
-            simparticles_.emplace(file_service_, "sim_particles");
-        }
-    }
-
-    // Bind a specific Hit instantiation at each phlex registration site,
-    // e.g. &HitRNTupleWriter::write<SHiP::TrackFitResult> — std::get<T>
-    // picks the one TypedHitWriter<Hit> in writers_ by type, so this covers
-    // every non-sim writer without a method per type.
-    template <typename Hit>
-    void write(std::vector<Hit> const& hits) {
-        write_all(hits, std::get<TypedHitWriter<Hit>>(writers_));
-    }
-
-    // Kept separate: only conditionally constructed (when isSim), so they
-    // can't live in the always-present writers_ tuple.
-    void write_sim_hits(std::vector<SHiP::SimHit> const& hits) { write_all(hits, *simhits_); }
-
-    void write_sim_particles(std::vector<SHiP::SimParticle> const& particles) {
-        write_all(particles, *simparticles_);
-    }
-
-   private:
-    template <typename Hit>
-    static void write_all(std::vector<Hit> const& hits, TypedHitWriter<Hit>& writer) {
-        for (auto const& hit : hits) {
-            writer.write(hit);
-        }
-    }
-
-    // Declared first so it is destroyed last.
-    RNTupleFileService file_service_;
-
-    std::tuple<TypedHitWriter<SHiP::TrackFitResult>, TypedHitWriter<SHiP::UBTHit>,
-               TypedHitWriter<SHiP::SBTHit>, TypedHitWriter<SHiP::CaloHit>,
-               TypedHitWriter<SHiP::TimeDetHit>>
-        writers_;
-
-    // Left unconstructed (no RNTuple created at all) unless isSim
-    std::optional<TypedHitWriter<SHiP::SimHit>> simhits_;
-    std::optional<TypedHitWriter<SHiP::SimParticle>> simparticles_;
-};
 
 using HistD = RHist<double>;
 using FillerD = RHistConcurrentFiller<double>;
@@ -376,9 +244,10 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                     selector("timing_detector_reco", "spill", "timing_detector_reco"));
 
     if (isSim) {
-        register_writer(writer, "write_sim_hits", &HitRNTupleWriter::write_sim_hits,
+        register_writer(writer, "write_sim_hits", &HitRNTupleWriter::write_sim<SHiP::SimHit>,
                         passthrough("sim_hits"));
-        register_writer(writer, "write_sim_particles", &HitRNTupleWriter::write_sim_particles,
+        register_writer(writer, "write_sim_particles",
+                        &HitRNTupleWriter::write_sim<SHiP::SimParticle>,
                         passthrough("sim_particles"));
     }
 

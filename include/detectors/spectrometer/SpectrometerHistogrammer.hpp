@@ -12,6 +12,7 @@
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
+
 #include <SHiP/TrackFitResult.hpp>
 #include <cstdint>
 #include <memory>
@@ -44,8 +45,8 @@ class SpectrometerHistogrammer {
 
     ~SpectrometerHistogrammer() {
         fill_contexts_.clear();
-        file_service_->put("h_spectrometer_track_multiplicity", "Spectrometer tracks per event;N;Events",
-                           *h_multiplicity_);
+        file_service_->put("h_spectrometer_track_multiplicity",
+                           "Spectrometer tracks per event;N;Events", *h_multiplicity_);
         file_service_->put("h_ref_x", "Spectrometer track reference x position;x [mm];Entries",
                            *h_ref_x_);
         file_service_->put("h_ref_y", "Spectrometer track reference y position;y [mm];Entries",
@@ -60,7 +61,8 @@ class SpectrometerHistogrammer {
     using ContextD = ROOT::Experimental::RHistFillContext<double>;
 
     static std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
-        return std::make_shared<HistD>(static_cast<std::uint64_t>(nbins), std::make_pair(low, high));
+        return std::make_shared<HistD>(static_cast<std::uint64_t>(nbins),
+                                       std::make_pair(low, high));
     }
 
     struct FillContexts {

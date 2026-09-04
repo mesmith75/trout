@@ -14,6 +14,7 @@
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
+
 #include <SHiP/detectors/TimeDetHit.hpp>
 #include <cstdint>
 #include <memory>
@@ -26,7 +27,7 @@ class TimingDetectorHistogrammer {
     explicit TimingDetectorHistogrammer(std::shared_ptr<HistoFileService> file_service)
         : file_service_{std::move(file_service)},
           h_multiplicity_{std::make_shared<HistD>(static_cast<std::uint64_t>(1000),
-                                                   std::make_pair(-0.5, 999.5))},
+                                                  std::make_pair(-0.5, 999.5))},
           f_multiplicity_{h_multiplicity_} {}
 
     void observe(std::vector<SHiP::TimeDetHit> const& hits) {
@@ -35,8 +36,8 @@ class TimingDetectorHistogrammer {
 
     ~TimingDetectorHistogrammer() {
         fill_contexts_.clear();
-        file_service_->put("h_timing_detector_multiplicity", "Timing detector hits per event;N;Events",
-                           *h_multiplicity_);
+        file_service_->put("h_timing_detector_multiplicity",
+                           "Timing detector hits per event;N;Events", *h_multiplicity_);
     }
 
    private:

@@ -14,6 +14,7 @@
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
+
 #include <SHiP/detectors/SBTHit.hpp>
 #include <cstdint>
 #include <memory>
@@ -26,7 +27,7 @@ class SurroundTaggerHistogrammer {
     explicit SurroundTaggerHistogrammer(std::shared_ptr<HistoFileService> file_service)
         : file_service_{std::move(file_service)},
           h_multiplicity_{std::make_shared<HistD>(static_cast<std::uint64_t>(1000),
-                                                   std::make_pair(-0.5, 999.5))},
+                                                  std::make_pair(-0.5, 999.5))},
           f_multiplicity_{h_multiplicity_} {}
 
     void observe(std::vector<SHiP::SBTHit> const& hits) {
@@ -35,8 +36,8 @@ class SurroundTaggerHistogrammer {
 
     ~SurroundTaggerHistogrammer() {
         fill_contexts_.clear();
-        file_service_->put("h_surround_tagger_multiplicity", "Surround tagger hits per event;N;Events",
-                           *h_multiplicity_);
+        file_service_->put("h_surround_tagger_multiplicity",
+                           "Surround tagger hits per event;N;Events", *h_multiplicity_);
     }
 
    private:

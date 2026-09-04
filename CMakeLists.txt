@@ -176,7 +176,9 @@ target_link_libraries(
 add_library(rec_output_module MODULE src/io/rec_output_module.cpp)
 target_include_directories(
     rec_output_module
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/io"
 )
 target_link_libraries(
     rec_output_module
@@ -189,6 +191,24 @@ target_link_libraries(
         ROOT::ROOTNTuple
         Boost::headers
         spdlog::spdlog
+)
+
+# Smoke-test input generator (build-only, not installed)
+add_executable(make_test_input tools/make_test_input.cpp)
+target_include_directories(
+    make_test_input
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_include_directories(
+    make_test_input
+    SYSTEM
+    PRIVATE "${Random123_INCLUDE_DIR}"
+)
+target_link_libraries(
+    make_test_input
+    PRIVATE SHiP::SHiPDataModel ROOT::RIO ROOT::ROOTNTuple TBB::tbb
 )
 
 # Install
