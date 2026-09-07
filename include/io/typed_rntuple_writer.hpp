@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "TFile.h"
+
 #include <ROOT/RHist.hxx>
 #include <ROOT/RHistConcurrentFiller.hxx>
 #include <ROOT/RHistFillContext.hxx>
@@ -15,11 +17,9 @@
 #include <ROOT/RNTupleFillStatus.hxx>
 #include <ROOT/RNTupleModel.hxx>
 #include <ROOT/RNTupleParallelWriter.hxx>
-#include "TFile.h"
-#include <algorithm>
 #include <tuple>
 #include <type_traits>
-#include <oneapi/tbb/enumerable_thread_specific.h>
+
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/TrackFitResult.hpp>
@@ -28,6 +28,8 @@
 #include <SHiP/detectors/StrawTubesHit.hpp>
 #include <SHiP/detectors/TimeDetHit.hpp>
 #include <SHiP/detectors/UBTHit.hpp>
+#include <algorithm>
+#include <oneapi/tbb/enumerable_thread_specific.h>
 
 using ROOT::REntry;
 using ROOT::RNTupleModel;

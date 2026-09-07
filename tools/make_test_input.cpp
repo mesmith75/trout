@@ -32,8 +32,7 @@ std::vector<double> stat_z = {84070, 86070, 93070, 95070};
 using SmokeTestWriters = TypedHitWriters<
     NamedHit<"sim_particles", SHiP::SimParticle>, NamedHit<"sim_hits", SHiP::SimHit>,
     NamedHit<"ubt_hits", SHiP::UBTHit>, NamedHit<"sbt_hits", SHiP::SBTHit>,
-    NamedHit<"straw_tubes_hits", SHiP::StrawTubesHit>,
-    NamedHit<"calorimeter_hits", SHiP::CaloHit>,
+    NamedHit<"straw_tubes_hits", SHiP::StrawTubesHit>, NamedHit<"calorimeter_hits", SHiP::CaloHit>,
     NamedHit<"timing_detector_hits", SHiP::TimeDetHit>>;
 
 int main(int argc, char* argv[]) {
@@ -73,8 +72,8 @@ int main(int argc, char* argv[]) {
                 sim_hit.trackId = track;
                 sim_hit.pdgCode = particle.pdgCode;
 
-                if(detector == SHiP::detector_id::StrawTubes){
-                    for(int stat = 0 ; stat < stat_z.size() ; stat ++){
+                if (detector == SHiP::detector_id::StrawTubes) {
+                    for (int stat = 0; stat < stat_z.size(); stat++) {
                         SHiP::SimHit sim_hit;
                         sim_hit.detectorId = static_cast<std::int32_t>(detector);
                         sim_hit.trackId = track;
@@ -90,8 +89,7 @@ int main(int argc, char* argv[]) {
                         hit.recHit = SHiP::fromSimHit(sim_hit);
                         writers.get<SHiP::StrawTubesHit>().write(hit);
                     }
-                }
-                else{
+                } else {
                     SHiP::SimHit sim_hit;
                     sim_hit.detectorId = static_cast<std::int32_t>(detector);
                     sim_hit.trackId = track;

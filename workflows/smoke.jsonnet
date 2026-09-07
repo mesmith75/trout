@@ -51,7 +51,7 @@ local simulation = true;
       cpp: 'rec_output_module',
       creator: 'fit_seed',
       layer: 'seed',
-      rntuple_file: 'track_fit_results.root',
+      rntuple_file: 'smoke_results.root',
       simulation: simulation
     },
   },
