@@ -10,15 +10,15 @@ set -euo pipefail
 ./build/make_test_input smoke_input.root 10
 
 # Remove outputs from previous runs so stale files cannot pass the checks.
-rm -f smoke_digi_output.root smoke_digi_validation.root
+rm -f smoke_reco_output.root smoke_reco_validation.root
 
 phlex -c workflows/smoke.jsonnet
 
-for f in smoke_digi_output.root smoke_digi_validation.root; do
+for f in smoke_reco_output.root smoke_reco_validation.root; do
     if ! [ -s "$f" ]; then
         echo "missing output: $f" >&2
         exit 1
     fi
 done
-python scripts/validate_smoke.py smoke_digi_output.root smoke_digi_validation.root
+python scripts/validate_smoke.py smoke_reco_output.root smoke_reco_validation.root
 echo "Smoke test OK"
